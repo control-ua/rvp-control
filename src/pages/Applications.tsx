@@ -74,6 +74,14 @@ const STATUSES: ApplicationStatus[] = [
   'Скасована',
 ];
 
+const MOBILE_STATUS_ACCENT: Record<ApplicationStatus, string> = {
+  'Нова': 'bg-blue-500',
+  'Прийнята': 'bg-violet-500',
+  'В роботі': 'bg-amber-500',
+  'Виконана': 'bg-emerald-500',
+  'Скасована': 'bg-rose-500',
+};
+
 function DetailRow({
   label,
   value,
@@ -1059,9 +1067,9 @@ export default function Applications() {
           </button>
         }
       >
-        <div className="bg-[#141720] border border-white/5 rounded-xl p-4 mb-5 space-y-3">
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex-1 min-w-[200px] relative">
+        <div className="bg-[#141720] border border-white/5 rounded-2xl p-3 sm:p-4 mb-4 sm:mb-5 space-y-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            <div className="w-full sm:flex-1 sm:min-w-[200px] relative">
               <Search
                 size={15}
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"
@@ -1076,7 +1084,7 @@ export default function Applications() {
                     event.target.value
                   )
                 }
-                className="w-full bg-white/5 border border-white/5 rounded-lg pl-9 pr-4 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/[0.07] transition"
+                className="w-full bg-white/5 border border-white/5 rounded-xl pl-9 pr-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/[0.07] transition"
               />
             </div>
 
@@ -1086,7 +1094,7 @@ export default function Applications() {
                   !showFilters
                 )
               }
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm border transition-colors ${
+              className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm border transition-colors ${
                 hasFilters
                   ? 'bg-blue-600/15 text-blue-400 border-blue-500/20'
                   : 'bg-white/5 text-slate-400 border-white/5 hover:text-slate-200'
@@ -1219,7 +1227,154 @@ export default function Applications() {
           )}
         </div>
 
-        <div className="bg-[#141720] border border-white/5 rounded-xl overflow-hidden">
+        <div className="md:hidden space-y-3">
+          {loading ? (
+            <div className="rounded-2xl border border-white/5 bg-[#141720] px-4 py-10">
+              <div className="flex items-center justify-center gap-2 text-slate-500">
+                <Loader2 size={18} className="animate-spin" />
+                <span className="text-sm">Завантаження заявок…</span>
+              </div>
+            </div>
+          ) : error ? (
+            <div className="rounded-2xl border border-red-500/10 bg-[#141720] px-4 py-8">
+              <div className="flex flex-col items-center gap-3 text-center">
+                <AlertCircle size={24} className="text-red-400" />
+                <span className="text-sm text-red-400">{error}</span>
+                <button
+                  onClick={loadApplications}
+                  className="flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm text-slate-300"
+                >
+                  <RefreshCw size={14} />
+                  Спробувати знову
+                </button>
+              </div>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="rounded-2xl border border-white/5 bg-[#141720] px-4 py-10 text-center text-sm text-slate-500">
+              Заявки не знайдено
+            </div>
+          ) : (
+            filtered.map((app) => {
+              const callPhone = app.phone || app.contractorPhone || '';
+
+              return (
+                <div
+                  key={app.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setSelected(app)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setSelected(app);
+                    }
+                  }}
+                  className="relative w-full overflow-hidden rounded-2xl border border-white/5 bg-[#141720] p-4 pl-5 text-left shadow-[0_10px_30px_rgba(0,0,0,0.15)] transition active:scale-[0.99]"
+                >
+                  <span
+                    className={`absolute inset-y-0 left-0 w-1 ${MOBILE_STATUS_ACCENT[app.status]}`}
+                  />
+
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="font-mono text-lg font-bold tracking-tight text-blue-400">
+                          {app.number}
+                        </span>
+                        <span className="rounded-md bg-white/[0.04] px-2 py-0.5 text-[11px] text-slate-500">
+                          {formatDate(app.date)}
+                        </span>
+                      </div>
+
+                      <div className="mt-1.5 truncate text-base font-semibold text-white">
+                        {app.customer || 'Без замовника'}
+                      </div>
+                    </div>
+
+                    <StatusBadge
+                      label={app.status}
+                      className={getApplicationStatusColor(app.status)}
+                    />
+                  </div>
+
+                  <div className="space-y-2.5">
+                    <div className="flex items-start gap-2 text-sm text-slate-400">
+                      <MapPin size={16} className="mt-0.5 shrink-0 text-slate-600" />
+                      <span className="line-clamp-2 leading-5">
+                        {app.address || 'Адреса не вказана'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-sm text-slate-400">
+                      <User size={16} className="shrink-0 text-slate-600" />
+                      <span className="truncate">
+                        {app.contractorName || 'Підрядника не призначено'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex items-center justify-between border-t border-white/5 pt-3">
+                    <span className="text-xs text-slate-500">
+                      Сума
+                    </span>
+                    <span className="text-base font-semibold text-white">
+                      {(app.amount ?? 0).toLocaleString('uk-UA')} ₴
+                    </span>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    {callPhone ? (
+                      <a
+                        href={`tel:${callPhone}`}
+                        onClick={(event) => event.stopPropagation()}
+                        className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-white/5 bg-white/[0.035] px-2 text-xs font-medium text-slate-300 active:bg-white/[0.08]"
+                      >
+                        <Phone size={15} />
+                        Подзвонити
+                      </a>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled
+                        onClick={(event) => event.stopPropagation()}
+                        className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-white/5 bg-white/[0.02] px-2 text-xs font-medium text-slate-600"
+                      >
+                        <Phone size={15} />
+                        Подзвонити
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setSelected(app);
+                      }}
+                      className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-blue-500/15 bg-blue-500/[0.07] px-2 text-xs font-medium text-blue-400 active:bg-blue-500/[0.13]"
+                    >
+                      <ExternalLink size={15} />
+                      Відкрити
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setSelected(app);
+                      }}
+                      className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-violet-500/15 bg-violet-500/[0.07] px-2 text-xs font-medium text-violet-400 active:bg-violet-500/[0.13]"
+                    >
+                      <User size={15} />
+                      Призначити
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <div className="hidden md:block bg-[#141720] border border-white/5 rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>

@@ -55,3 +55,23 @@ body{margin:0;min-height:100dvh;overscroll-behavior-y:none;-webkit-tap-highlight
 button,a,input,select,textarea{touch-action:manipulation}
 @media(max-width:1023px){table{white-space:nowrap}}
 @media(display-mode:standalone){body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}}
+
+
+@media (max-width: 767px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 767px) {
+  .mobile-no-scrollbar {
+    scrollbar-width: none;
+  }
+  .mobile-no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}

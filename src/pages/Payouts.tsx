@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Receipt, Clock, CheckCircle2, Wallet, Check, Eye, X, Loader2, AlertCircle, RefreshCw, FileText } from 'lucide-react';
+import { Receipt, Clock, CheckCircle2, Wallet, Check, Eye, X, Loader2, AlertCircle, RefreshCw, FileText, Phone } from 'lucide-react';
 import StatusBadge from '@/components/StatusBadge';
 import PageHeader from '@/components/PageHeader';
 import StatCard from '@/components/StatCard';
@@ -16,9 +16,9 @@ function getInitials(name?: string): string {
 function ReceiptViewerModal({ payout, onClose }: { payout: PayoutItem; onClose: () => void }) {
   const isImage = payout.receiptType === 'photo' || payout.receiptType === 'image';
   const modal = (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center sm:p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-[#141720] border border-white/10 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
+      <div className="relative w-full max-h-[92dvh] overflow-y-auto rounded-t-3xl border border-white/10 bg-[#141720] shadow-2xl sm:max-w-lg sm:rounded-2xl sm:max-h-[90vh]">
         <div className="sticky top-0 bg-[#141720] border-b border-white/5 px-6 py-4 flex items-center justify-between z-10">
           <span className="text-sm font-semibold text-white">Квитанція виплати {payout.applicationNumber}</span>
           <button onClick={onClose} className="text-slate-500 hover:text-slate-300 transition-colors p-1 rounded-lg hover:bg-white/5">
@@ -71,9 +71,9 @@ function ConfirmPayoutModal({ payout, onClose, onConfirmed }: { payout: PayoutIt
   };
 
   const modal = (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center sm:p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-[#141720] border border-white/10 rounded-2xl w-full max-w-md shadow-2xl">
+      <div className="relative w-full rounded-t-3xl border border-white/10 bg-[#141720] shadow-2xl sm:max-w-md sm:rounded-2xl">
         <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between">
           <h2 className="text-base font-semibold text-white">Підтвердити виплату</h2>
           <button onClick={onClose} className="text-slate-500 hover:text-slate-300 transition-colors p-1 rounded-lg hover:bg-white/5">
@@ -143,7 +143,105 @@ export default function Payouts() {
         <StatCard title="Кількість виплат" value={paidCount + pendingCount} icon={<Receipt size={18} />} accent="blue" />
       </div>
 
-      <div className="bg-[#141720] border border-white/5 rounded-2xl overflow-hidden">
+      <div className="md:hidden space-y-3" data-mobile-payouts>
+        {loading ? (
+          <div className="rounded-2xl border border-white/5 bg-[#141720] py-10 text-center">
+            <Loader2 size={20} className="mx-auto animate-spin text-slate-500" />
+            <p className="mt-2 text-sm text-slate-500">Завантаження виплат…</p>
+          </div>
+        ) : error ? (
+          <div className="rounded-2xl border border-red-500/10 bg-[#141720] p-5 text-center">
+            <AlertCircle size={22} className="mx-auto text-red-400" />
+            <p className="mt-2 text-sm text-red-400">{error}</p>
+            <button
+              onClick={loadPayouts}
+              className="mt-3 inline-flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm text-slate-300"
+            >
+              <RefreshCw size={14} />
+              Оновити
+            </button>
+          </div>
+        ) : payouts.length === 0 ? (
+          <div className="rounded-2xl border border-white/5 bg-[#141720] py-10 text-center text-sm text-slate-500">
+            Виплат поки немає
+          </div>
+        ) : (
+          payouts.map((p) => (
+            <div
+              key={p.id}
+              className="rounded-2xl border border-white/5 bg-[#141720] p-4 shadow-[0_10px_30px_rgba(0,0,0,0.16)]"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-mono text-sm font-semibold text-blue-400">{p.applicationNumber}</p>
+                  <p className="mt-1 truncate text-base font-semibold text-white">{p.contractorName}</p>
+                  <p className="mt-0.5 text-xs text-slate-500">{p.contractorPhone || 'Телефон не вказано'}</p>
+                </div>
+                <StatusBadge
+                  label={p.payoutStatus}
+                  className={getPayoutStatusColor(p.payoutStatus)}
+                />
+              </div>
+
+              <div className="mt-4 flex items-end justify-between rounded-xl bg-white/[0.025] p-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-slate-600">Сума</p>
+                  <p className={`mt-1 text-xl font-semibold ${p.amount > 0 ? 'text-white' : 'text-slate-500'}`}>
+                    {p.amount > 0 ? formatCurrency(p.amount) : '—'}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] uppercase tracking-wide text-slate-600">Дата виплати</p>
+                  <p className="mt-1 text-xs text-slate-400">{p.paidAt ? formatDate(p.paidAt) : 'Ще не виплачено'}</p>
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {p.contractorPhone ? (
+                  <a
+                    href={`tel:${p.contractorPhone}`}
+                    className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/5 bg-white/[0.03] text-xs font-medium text-slate-300"
+                  >
+                    <Phone size={15} />
+                    Подзвонити
+                  </a>
+                ) : (
+                  <button disabled className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/5 bg-white/[0.02] text-xs text-slate-600">
+                    <Phone size={15} />
+                    Подзвонити
+                  </button>
+                )}
+
+                {p.receiptUrl ? (
+                  <button
+                    onClick={() => setToView(p)}
+                    className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-blue-500/15 bg-blue-500/[0.07] text-xs font-medium text-blue-400"
+                  >
+                    <Receipt size={15} />
+                    Квитанція
+                  </button>
+                ) : (
+                  <div className="flex min-h-11 items-center justify-center rounded-xl border border-white/5 bg-white/[0.02] text-xs text-slate-600">
+                    Без квитанції
+                  </div>
+                )}
+              </div>
+
+              {p.payoutStatus === 'Очікує' && p.amount > 0 && (
+                <button
+                  onClick={() => setToConfirm(p)}
+                  className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 text-sm font-semibold text-white active:bg-emerald-500"
+                >
+                  <Check size={16} />
+                  Підтвердити виплату
+                </button>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="hidden md:block bg-[#141720] border border-white/5 rounded-2xl overflow-hidden">
         <div className="overflow-x-auto mobile-no-scrollbar">
           <table className="w-full text-sm">
             <thead>

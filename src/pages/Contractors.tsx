@@ -54,10 +54,10 @@ function ContractorProfileModal({
   const totalPayoutFromApps = apps.reduce((sum, a) => sum + (a.payoutStatus === 'paid' ? a.payoutAmount : 0), 0);
 
   const modal = (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center sm:p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-[#141720] border border-white/10 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
-        <div className="sticky top-0 bg-[#141720] border-b border-white/5 px-6 py-4 flex items-center justify-between z-10">
+      <div className="relative w-full max-h-[92dvh] overflow-y-auto rounded-t-3xl border border-white/10 bg-[#141720] shadow-2xl sm:max-w-2xl sm:rounded-2xl sm:max-h-[90vh]">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/5 bg-[#141720] px-4 py-4 sm:px-6">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-blue-600/20 flex items-center justify-center text-blue-400 font-semibold text-sm">
               {contractor.name.split(' ').map(p => p[0]).slice(0, 2).join('')}
@@ -72,7 +72,7 @@ function ContractorProfileModal({
           </button>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="space-y-4 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:space-y-6 sm:p-6">
           {/* Contact */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="bg-white/[0.03] rounded-xl p-4 flex items-center gap-3">
@@ -349,7 +349,93 @@ export default function Contractors() {
           </button>
         }
       >
-        <div className="bg-[#141720] border border-white/5 rounded-2xl overflow-hidden">
+        <div className="md:hidden space-y-3" data-mobile-contractors>
+          {loading ? (
+            <div className="rounded-2xl border border-white/5 bg-[#141720] py-10 text-center">
+              <Loader2 size={20} className="mx-auto animate-spin text-slate-500" />
+              <p className="mt-2 text-sm text-slate-500">Завантаження підрядників…</p>
+            </div>
+          ) : error ? (
+            <div className="rounded-2xl border border-red-500/10 bg-[#141720] p-5 text-center">
+              <AlertCircle size={22} className="mx-auto text-red-400" />
+              <p className="mt-2 text-sm text-red-400">{error}</p>
+              <button
+                onClick={loadContractors}
+                className="mt-3 inline-flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm text-slate-300"
+              >
+                <RefreshCw size={14} />
+                Оновити
+              </button>
+            </div>
+          ) : contractors.length === 0 ? (
+            <div className="rounded-2xl border border-white/5 bg-[#141720] py-10 text-center text-sm text-slate-500">
+              Підрядників поки немає
+            </div>
+          ) : (
+            contractors.map((c) => {
+              const percent =
+                c.totalApplications > 0
+                  ? Math.round((c.completedApplications / c.totalApplications) * 100)
+                  : 0;
+
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setSelected(c)}
+                  className="w-full rounded-2xl border border-white/5 bg-[#141720] p-4 text-left shadow-[0_10px_30px_rgba(0,0,0,0.16)] active:scale-[0.99]"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-600/15 text-sm font-bold text-blue-400">
+                      {c.name.split(' ').map(p => p[0]).slice(0, 2).join('')}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-base font-semibold text-white">{c.name}</p>
+                          <p className="mt-0.5 truncate text-xs text-slate-500">
+                            {c.regionName || 'Регіон не вказано'}
+                          </p>
+                        </div>
+                        <StatusBadge
+                          label={contractorStatusLabel(c.status)}
+                          className={getContractorStatusColor(c.status)}
+                        />
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <div className="rounded-xl bg-white/[0.025] p-2.5">
+                          <p className="text-[10px] uppercase tracking-wide text-slate-600">Заявок</p>
+                          <p className="mt-1 text-sm font-semibold text-slate-200">{c.totalApplications}</p>
+                        </div>
+                        <div className="rounded-xl bg-white/[0.025] p-2.5">
+                          <p className="text-[10px] uppercase tracking-wide text-slate-600">Виконано</p>
+                          <p className="mt-1 text-sm font-semibold text-emerald-400">{percent}%</p>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-between border-t border-white/5 pt-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-xs text-slate-500">{c.phone || 'Телефон не вказано'}</p>
+                          <p className="mt-0.5 truncate text-xs text-slate-600">{c.username || 'Telegram не вказано'}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] uppercase tracking-wide text-slate-600">Виплати</p>
+                          <p className="mt-0.5 text-sm font-semibold text-white">
+                            {(c.totalPayout ?? 0).toLocaleString('uk-UA')} ₴
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              );
+            })
+          )}
+        </div>
+
+        <div className="hidden md:block bg-[#141720] border border-white/5 rounded-2xl overflow-hidden">
           <div className="overflow-x-auto mobile-no-scrollbar">
             <table className="w-full text-sm">
               <thead>

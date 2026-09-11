@@ -888,6 +888,22 @@ export default function Applications() {
   const [dateTo, setDateTo] =
     useState('');
 
+  const [dashboardFilter, setDashboardFilter] =
+    useState<'all' | 'overdue' | 'today' | 'tomorrow'>(() => {
+      const saved = sessionStorage.getItem('rvp-applications-dashboard-filter');
+      sessionStorage.removeItem('rvp-applications-dashboard-filter');
+
+      if (
+        saved === 'overdue' ||
+        saved === 'today' ||
+        saved === 'tomorrow'
+      ) {
+        return saved;
+      }
+
+      return 'all';
+    });
+
   const [selected, setSelected] =
     useState<Application | null>(null);
 
@@ -1032,6 +1048,56 @@ export default function Applications() {
           return false;
         }
 
+        if (dashboardFilter !== 'all') {
+          if (!app.deadline) return false;
+
+          const deadline = new Date(app.deadline);
+          if (Number.isNaN(deadline.getTime())) return false;
+
+          const now = new Date();
+          const startToday = new Date(now);
+          startToday.setHours(0, 0, 0, 0);
+
+          const startTomorrow = new Date(startToday);
+          startTomorrow.setDate(startTomorrow.getDate() + 1);
+
+          const startAfterTomorrow = new Date(startTomorrow);
+          startAfterTomorrow.setDate(startAfterTomorrow.getDate() + 1);
+
+          const isDone =
+            app.status === 'Виконана' ||
+            app.status === 'Скасована';
+
+          if (isDone) return false;
+
+          if (
+            dashboardFilter === 'overdue' &&
+            !(deadline < now)
+          ) {
+            return false;
+          }
+
+          if (
+            dashboardFilter === 'today' &&
+            !(
+              deadline >= startToday &&
+              deadline < startTomorrow
+            )
+          ) {
+            return false;
+          }
+
+          if (
+            dashboardFilter === 'tomorrow' &&
+            !(
+              deadline >= startTomorrow &&
+              deadline < startAfterTomorrow
+            )
+          ) {
+            return false;
+          }
+        }
+
         return true;
       }
     );
@@ -1042,6 +1108,7 @@ export default function Applications() {
     contractorFilter,
     dateFrom,
     dateTo,
+    dashboardFilter,
   ]);
 
   const hasFilters =
@@ -1068,6 +1135,30 @@ export default function Applications() {
         }
       >
         <div className="bg-[#141720] border border-white/5 rounded-2xl p-3 sm:p-4 mb-4 sm:mb-5 space-y-3">
+          {dashboardFilter !== 'all' && (
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-blue-500/15 bg-blue-500/[0.07] px-3 py-2.5">
+              <div className="min-w-0">
+                <p className="text-[11px] uppercase tracking-wide text-blue-400/70">
+                  Фільтр з головної
+                </p>
+                <p className="truncate text-sm font-medium text-blue-300">
+                  {dashboardFilter === 'overdue'
+                    ? 'Прострочені заявки'
+                    : dashboardFilter === 'today'
+                    ? 'Дедлайн сьогодні'
+                    : 'Дедлайн на завтра'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDashboardFilter('all')}
+                className="shrink-0 rounded-lg bg-white/5 p-2 text-slate-400 hover:text-white"
+                aria-label="Скинути фільтр"
+              >
+                <X size={15} />
+              </button>
+            </div>
+          )}
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <div className="w-full sm:flex-1 sm:min-w-[200px] relative">
               <Search

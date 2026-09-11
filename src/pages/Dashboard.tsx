@@ -264,6 +264,15 @@ function AttentionCard({
   );
 }
 
+
+function openApplicationsFilter(
+  onNavigate: (page: DashboardNavigateTarget) => void,
+  filter: 'all' | 'overdue' | 'today' | 'tomorrow'
+) {
+  sessionStorage.setItem('rvp-applications-dashboard-filter', filter);
+  onNavigate('applications');
+}
+
 export default function Dashboard({
   onNavigate,
 }: Props) {
@@ -611,17 +620,17 @@ export default function Dashboard({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-            <button onClick={() => onNavigate('applications')} className="rounded-xl border border-red-500/10 bg-red-500/[0.06] p-4 text-left transition hover:bg-red-500/10">
+            <button onClick={() => openApplicationsFilter(onNavigate, 'overdue')} className="rounded-xl border border-red-500/10 bg-red-500/[0.06] p-4 text-left transition hover:bg-red-500/10">
               <TriangleAlert size={17} className="text-red-400" />
               <p className="mt-3 text-2xl font-semibold text-red-400">{deadlineStats.overdue}</p>
               <p className="mt-1 text-xs text-slate-500">Прострочено</p>
             </button>
-            <button onClick={() => onNavigate('applications')} className="rounded-xl border border-amber-500/10 bg-amber-500/[0.06] p-4 text-left transition hover:bg-amber-500/10">
+            <button onClick={() => openApplicationsFilter(onNavigate, 'today')} className="rounded-xl border border-amber-500/10 bg-amber-500/[0.06] p-4 text-left transition hover:bg-amber-500/10">
               <Clock3 size={17} className="text-amber-400" />
               <p className="mt-3 text-2xl font-semibold text-amber-400">{deadlineStats.today}</p>
               <p className="mt-1 text-xs text-slate-500">Дедлайн сьогодні</p>
             </button>
-            <button onClick={() => onNavigate('applications')} className="rounded-xl border border-blue-500/10 bg-blue-500/[0.06] p-4 text-left transition hover:bg-blue-500/10">
+            <button onClick={() => openApplicationsFilter(onNavigate, 'tomorrow')} className="rounded-xl border border-blue-500/10 bg-blue-500/[0.06] p-4 text-left transition hover:bg-blue-500/10">
               <CalendarClock size={17} className="text-blue-400" />
               <p className="mt-3 text-2xl font-semibold text-blue-400">{deadlineStats.tomorrow}</p>
               <p className="mt-1 text-xs text-slate-500">На завтра</p>

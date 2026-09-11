@@ -170,3 +170,46 @@ button,a,input,select,textarea{touch-action:manipulation}
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 }
+
+/* RVP MOBILE V4 */
+@media (max-width: 767px) {
+  body {
+    background: #0d0f14;
+  }
+
+  main {
+    width: 100%;
+    max-width: 100vw;
+  }
+
+  main > * {
+    max-width: 100%;
+  }
+
+  /* Desktop tables never dictate phone width. */
+  .hidden.md\:block table {
+    min-width: 760px;
+  }
+
+  /* Better iOS touch targets */
+  button,
+  a {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Bottom-sheet feeling for mobile dialogs */
+  [class*="rounded-t-3xl"] {
+    animation: rvp-sheet-in 180ms ease-out;
+  }
+}
+
+@keyframes rvp-sheet-in {
+  from {
+    transform: translateY(16px);
+    opacity: .75;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}

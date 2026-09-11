@@ -493,7 +493,7 @@ function App() {
         />
         </div>
 
-        <div className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto pb-[calc(64px+env(safe-area-inset-bottom))] lg:pb-0">
+        <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto pb-[calc(72px+env(safe-area-inset-bottom))] lg:pb-0">
           <div className="sticky top-0 z-40 flex min-h-14 items-center justify-end border-b border-white/5 bg-[#0d0f14]/95 px-3 pt-[env(safe-area-inset-top)] backdrop-blur lg:px-6 lg:pt-0">
             <div className="flex items-center gap-3">
               <div className="text-right">
@@ -601,7 +601,7 @@ function App() {
             </button>
           )}
         <MobileNav currentPage={currentPage} onNavigate={navigateTo} />
-      </div>
+      </main>
 
       <ToastContainer />
     </AppProvider>

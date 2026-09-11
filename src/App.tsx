@@ -204,9 +204,15 @@ function App() {
   return (
     <AppProvider>
       <div className="min-h-[100dvh] bg-[#060b12] text-slate-100 lg:flex">
-        <Sidebar currentPage={currentPage} onNavigate={navigateTo} onOpenSearch={() => setSearchOpen(true)} />
+        <div className="hidden lg:block">
+          <Sidebar
+            currentPage={currentPage}
+            onNavigate={navigateTo}
+            onOpenSearch={() => setSearchOpen(true)}
+          />
+        </div>
 
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 w-full flex-1">
           <header className="sticky top-0 z-40 flex h-[62px] items-center justify-between border-b border-white/[0.06] bg-[#07101a]/90 px-4 backdrop-blur-xl sm:px-5 lg:h-14 lg:px-6">
             <div className="flex min-w-0 items-center gap-2 lg:hidden">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-400 via-blue-500 to-indigo-600 text-sm font-black text-white shadow-[0_0_24px_rgba(59,130,246,0.30)]">R</div>

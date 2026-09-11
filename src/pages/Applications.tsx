@@ -83,6 +83,26 @@ const MOBILE_STATUS_ACCENT: Record<ApplicationStatus, string> = {
   'Скасована': 'bg-rose-500',
 };
 
+
+function isApplicationOverdue(app: Application) {
+  if (!app.deadline) return false;
+
+  const deadline = new Date(app.deadline);
+  if (Number.isNaN(deadline.getTime())) return false;
+
+  const finished =
+    app.status === 'Виконана' ||
+    app.status === 'Скасована';
+
+  return !finished && deadline < new Date();
+}
+
+function applicationStatusColor(app: Application) {
+  return isApplicationOverdue(app)
+    ? 'bg-rose-500/15 text-rose-300 border border-rose-500/20'
+    : getApplicationStatusColor(app.status);
+}
+
 function DetailRow({
   label,
   value,
@@ -308,9 +328,7 @@ function ApplicationModal({
 
             <StatusBadge
               label={isApplicationOverdue(app) ? 'Прострочена' : app.status}
-              className={getApplicationStatusColor(
-                app.status
-              )}
+              className={applicationStatusColor(app)}
             />
           </div>
 
@@ -1427,7 +1445,7 @@ export default function Applications() {
 
                     <StatusBadge
                       label={isApplicationOverdue(app) ? 'Прострочена' : app.status}
-                      className={getApplicationStatusColor(app.status)}
+                      className={applicationStatusColor(app)}
                     />
                   </div>
 

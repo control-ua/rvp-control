@@ -25,7 +25,7 @@ function ReceiptViewerModal({ payout, onClose }: { payout: PayoutItem; onClose: 
             <X size={18} />
           </button>
         </div>
-        <div className="p-6">
+        <div className="p-3 sm:p-4 lg:p-6">
           {isImage && payout.receiptUrl ? (
             <div className="rounded-xl overflow-hidden bg-white/[0.03] border border-white/5">
               <img src={payout.receiptUrl} alt="Квитанція" className="w-full object-contain" />
@@ -136,15 +136,15 @@ export default function Payouts() {
 
   return (
     <PageHeader pageTitle="Виплати" pageSubtitle={`${payouts.length} записів`}>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard title="До виплати" value={formatCurrency(totalPending)} icon={<Clock size={18} />} accent="amber" />
         <StatCard title="Виплачено" value={formatCurrency(totalPaid)} icon={<CheckCircle2 size={18} />} accent="green" />
         <StatCard title="Очікують" value={pendingCount} icon={<Wallet size={18} />} accent="amber" />
         <StatCard title="Кількість виплат" value={paidCount + pendingCount} icon={<Receipt size={18} />} accent="blue" />
       </div>
 
-      <div className="bg-[#141720] border border-white/5 rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="bg-[#141720] border border-white/5 rounded-2xl overflow-hidden">
+        <div className="overflow-x-auto mobile-no-scrollbar">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/5 bg-white/[0.02]">

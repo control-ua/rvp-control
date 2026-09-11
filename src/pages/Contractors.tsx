@@ -74,7 +74,7 @@ function ContractorProfileModal({
 
         <div className="p-6 space-y-6">
           {/* Contact */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="bg-white/[0.03] rounded-xl p-4 flex items-center gap-3">
               <Phone size={16} className="text-slate-500" />
               <div>
@@ -113,7 +113,7 @@ function ContractorProfileModal({
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="bg-white/[0.03] rounded-xl p-4 text-center">
               <BarChart2 size={18} className="text-blue-400 mx-auto mb-1" />
               <p className="text-xl font-bold text-white">{apps.length}</p>
@@ -349,8 +349,8 @@ export default function Contractors() {
           </button>
         }
       >
-        <div className="bg-[#141720] border border-white/5 rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
+        <div className="bg-[#141720] border border-white/5 rounded-2xl overflow-hidden">
+          <div className="overflow-x-auto mobile-no-scrollbar">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/5 bg-white/[0.02]">

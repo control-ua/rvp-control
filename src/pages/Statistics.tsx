@@ -188,7 +188,7 @@ export default function Statistics() {
       {regionStats.length > 0 && (
         <div className="bg-[#141720] border border-white/5 rounded-xl p-5 mt-5">
           <h3 className="text-sm font-semibold text-slate-200 mb-4">Заявки за регіонами</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             {regionStats.map(r => (
               <div key={r.name} className="bg-white/[0.03] rounded-lg p-4 text-center">
                 <p className="text-2xl font-bold text-white">{r.count}</p>

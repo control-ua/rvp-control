@@ -57,7 +57,7 @@ export default function ContractorRating() {
         ) : items.length === 0 ? (
           <div className="py-14 text-center"><Trophy size={24} className="mx-auto text-slate-600" /><p className="mt-3 text-sm text-slate-400">Немає даних</p></div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto mobile-no-scrollbar">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/5 bg-white/[0.02]">

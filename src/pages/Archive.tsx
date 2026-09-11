@@ -721,7 +721,7 @@ export default function Archive({
           <>
             {/* TABLE */}
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto mobile-no-scrollbar">
 
               <table className="w-full min-w-[1000px] text-sm">
 

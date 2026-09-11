@@ -205,7 +205,7 @@ function ActDetailModal({
           {/* Application */}
           <section>
             <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Заявка</h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <DetailRow label="Номер заявки" value={act.applicationNumber} mono />
               <DetailRow label="Код АЗК" value={
                 <span className="flex items-center gap-1"><Hash size={12} className="text-slate-500" />{act.applicationAzkCode ?? '—'}</span>
@@ -227,7 +227,7 @@ function ActDetailModal({
           {/* Contractor */}
           <section>
             <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Підрядник</h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <DetailRow label="ПІБ" value={
                 <span className="flex items-center gap-1"><User size={12} className="text-slate-500" />{act.contractorName}</span>
               } />
@@ -246,7 +246,7 @@ function ActDetailModal({
           {/* Dates */}
           <section>
             <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Дата та статус</h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <DetailRow label="Дата акта" value={
                 <span className="flex items-center gap-1"><Calendar size={12} className="text-slate-500" />{act.actDate ? formatDateTime(act.actDate) : '—'}</span>
               } />

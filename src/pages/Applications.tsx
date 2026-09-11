@@ -327,7 +327,7 @@ function ApplicationModal({
               Об&apos;єкт
             </h3>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <DetailRow
                 label="Назва"
                 value={app.customer}
@@ -380,7 +380,7 @@ function ApplicationModal({
               Планування
             </h3>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <DetailRow
                 label="Дата заявки"
                 value={
@@ -434,7 +434,7 @@ function ApplicationModal({
             </h3>
 
             {app.contractorId && (
-              <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                 <DetailRow
                   label="ПІБ"
                   value={
@@ -556,7 +556,7 @@ function ApplicationModal({
               Фінанси
             </h3>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-cols-4 gap-4">
               <DetailRow
                 label="Об'єм (факт.)"
                 value={
@@ -816,7 +816,7 @@ function ApplicationModal({
               </button>
             </div>
 
-            <div className="p-6">
+            <div className="p-3 sm:p-4 lg:p-6">
               <img
                 src={receiptUrl}
                 alt="Квитанція"
@@ -1375,7 +1375,7 @@ export default function Applications() {
         </div>
 
         <div className="hidden md:block bg-[#141720] border border-white/5 rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto mobile-no-scrollbar">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/5 bg-white/[0.02]">

@@ -142,7 +142,7 @@ export default function Finance({
             </div>
           </div>
 
-          <div className="p-4">
+          <div className="p-3 sm:p-4">
             {loading ? (
               <div className="flex h-[280px] items-center justify-center">
                 <Loader2 size={20} className="animate-spin text-slate-500" />
@@ -220,7 +220,7 @@ export default function Finance({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="rounded-xl border border-white/[0.05] bg-white/[0.02] p-3">
                 <p className="text-[10px] uppercase tracking-wide text-slate-600">Очікує</p>
                 <p className="mt-2 text-sm font-semibold text-amber-400">
@@ -270,7 +270,7 @@ export default function Finance({
               Даних немає
             </div>
           ) : (
-            <div className="p-4">
+            <div className="p-3 sm:p-4">
               <ResponsiveContainer width="100%" height={210}>
                 <BarChart
                   data={topContractors.slice(0, 7)}

@@ -610,7 +610,7 @@ export default function Dashboard({
             <CalendarClock size={17} className="text-blue-400" />
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
             <button onClick={() => onNavigate('applications')} className="rounded-xl border border-red-500/10 bg-red-500/[0.06] p-4 text-left transition hover:bg-red-500/10">
               <TriangleAlert size={17} className="text-red-400" />
               <p className="mt-3 text-2xl font-semibold text-red-400">{deadlineStats.overdue}</p>
@@ -634,7 +634,7 @@ export default function Dashboard({
             <h3 className="text-sm font-semibold text-white">Швидкі дії</h3>
             <p className="mt-1 text-xs text-slate-500">Основні робочі розділи</p>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <button onClick={() => onNavigate('applications')} className="flex items-center gap-3 rounded-xl border border-white/5 bg-white/[0.025] p-3 text-left text-sm text-slate-300 transition hover:bg-white/[0.05]">
               <Plus size={16} className="text-blue-400" /> Заявки
             </button>
@@ -960,7 +960,7 @@ export default function Dashboard({
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto mobile-no-scrollbar">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/5 bg-white/[0.012]">

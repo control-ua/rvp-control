@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "RVP Control",
+    "slug": "rvp-control-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "rvpcontrol",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#0a0b0f",
+      "resizeMode": "contain",
+      "image": "./assets/splash.png"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.rvp.control.mobile",
+      "infoPlist": {
+        "UILaunchScreen": {
+          "backgroundColor": "#0a0b0f"
+        }
+      }
+    },
+    "android": {
+      "package": "com.rvp.control.mobile",
+      "backgroundColor": "#0a0b0f",
+      "jsEngine": "jsc"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

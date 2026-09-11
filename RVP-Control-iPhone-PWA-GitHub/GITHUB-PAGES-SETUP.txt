@@ -1,0 +1,7 @@
+RVP Control — GitHub Pages
+1. Создай репозиторий, например rvp-control, и загрузи туда содержимое этой папки.
+2. Settings → Secrets and variables → Actions → New repository secret.
+3. Добавь VITE_SUPABASE_URL и VITE_SUPABASE_ANON_KEY — значения возьми из текущего .env проекта Bolt. Сам .env в GitHub не загружай.
+4. Settings → Pages → Source → GitHub Actions.
+5. Actions → дождись успешного Deploy RVP Control to GitHub Pages.
+6. На iPhone открой Pages-ссылку в Safari → Поделиться → На экран «Домой».

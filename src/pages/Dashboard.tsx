@@ -623,7 +623,7 @@ export default function Dashboard({
             <button onClick={() => openApplicationsFilter(onNavigate, 'overdue')} className="rounded-xl border border-red-500/10 bg-red-500/[0.06] p-4 text-left transition hover:bg-red-500/10">
               <TriangleAlert size={17} className="text-red-400" />
               <p className="mt-3 text-2xl font-semibold text-red-400">{deadlineStats.overdue}</p>
-              <p className="mt-1 text-xs text-slate-500">Прострочено</p>
+              <p className="mt-1 text-xs text-slate-500">Прострочені</p>
             </button>
             <button onClick={() => openApplicationsFilter(onNavigate, 'today')} className="rounded-xl border border-amber-500/10 bg-amber-500/[0.06] p-4 text-left transition hover:bg-amber-500/10">
               <Clock3 size={17} className="text-amber-400" />

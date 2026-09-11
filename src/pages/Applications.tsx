@@ -307,7 +307,7 @@ function ApplicationModal({
             </span>
 
             <StatusBadge
-              label={app.status}
+              label={isApplicationOverdue(app) ? 'Прострочена' : app.status}
               className={getApplicationStatusColor(
                 app.status
               )}
@@ -1186,7 +1186,7 @@ export default function Applications() {
                 </p>
                 <p className="truncate text-sm font-medium text-blue-300">
                   {dashboardFilter === 'overdue'
-                    ? 'Прострочені заявки'
+                    ? 'Прострочені'
                     : dashboardFilter === 'today'
                     ? 'Дедлайн сьогодні'
                     : 'Дедлайн на завтра'}
@@ -1426,7 +1426,7 @@ export default function Applications() {
                     </div>
 
                     <StatusBadge
-                      label={app.status}
+                      label={isApplicationOverdue(app) ? 'Прострочена' : app.status}
                       className={getApplicationStatusColor(app.status)}
                     />
                   </div>

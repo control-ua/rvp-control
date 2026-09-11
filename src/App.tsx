@@ -56,6 +56,7 @@ function App() {
   const [applicationFilter, setApplicationFilter] = useState<ApplicationDashboardFilter>('all');
   const [newApplication, setNewApplication] = useState<NewApplicationNotification | null>(null);
   const [unreadApplications, setUnreadApplications] = useState(0);
+  const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem('rvp-audio-enabled') === '1');
   const notificationTimer = useRef<number | null>(null);
   const lastSeenApplicationId = useRef<string | null>(null);
 
@@ -86,6 +87,7 @@ function App() {
   }, []);
 
   const playNotificationSound = () => {
+    if (localStorage.getItem('rvp-audio-enabled') !== '1') return;
     try {
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioContextClass) return;
@@ -215,6 +217,31 @@ function App() {
     };
   }, [session]);
 
+  const enableSound = async () => {
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioContextClass) {
+        const ctx = new AudioContextClass();
+        if (ctx.state === 'suspended') await ctx.resume();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.01);
+      }
+      localStorage.setItem('rvp-audio-enabled', '1');
+      setSoundEnabled(true);
+
+      if ('Notification' in window && Notification.permission === 'default') {
+        try { await Notification.requestPermission(); } catch {}
+      }
+    } catch (error) {
+      console.log('Enable sound error:', error);
+    }
+  };
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
   };
@@ -286,6 +313,16 @@ function App() {
               <button onClick={() => setSearchOpen(true)} className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/[0.07] bg-white/[0.025] text-slate-400 transition hover:bg-white/[0.06] hover:text-white sm:w-auto sm:px-3" aria-label="Пошук">
                 <Search size={16} /><span className="ml-2 hidden sm:inline">Пошук</span>
               </button>
+
+              {!soundEnabled && (
+                <button
+                  onClick={enableSound}
+                  className="flex h-9 items-center gap-1.5 rounded-lg border border-amber-400/20 bg-amber-400/10 px-2.5 text-xs font-semibold text-amber-300"
+                  title="Увімкнути звук сповіщень"
+                >
+                  🔊 <span className="hidden sm:inline">Звук</span>
+                </button>
+              )}
 
               <button onClick={() => navigateTo('notifications')} className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-white/[0.07] bg-white/[0.025] text-slate-400 transition hover:bg-white/[0.06] hover:text-white" aria-label="Сповіщення">
                 <Bell size={16} />

@@ -49,6 +49,7 @@ import {
 } from '@/lib/contractorsApi';
 
 import { telegramFileUrl } from '@/lib/actsApi';
+import { supabase } from '@/lib/supabase';
 import { tryCreateAuditLog } from '@/lib/auditLogApi';
 
 import type {
@@ -951,6 +952,48 @@ export default function Applications() {
 
   useEffect(() => {
     loadApplications();
+  }, [loadApplications]);
+
+  // Live sync: new/updated/deleted applications appear without reloading the app.
+  useEffect(() => {
+    const channel = supabase
+      .channel('applications-page-live-sync')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'applications' },
+        () => loadApplications(),
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'applications' },
+        () => loadApplications(),
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'applications' },
+        () => loadApplications(),
+      )
+      .subscribe();
+
+    // Fallback for iPhone/PWA: refresh every 15 seconds in case Realtime reconnects late.
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        loadApplications();
+      }
+    }, 15000);
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        loadApplications();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+      supabase.removeChannel(channel);
+    };
   }, [loadApplications]);
 
   const filtered = useMemo(() => {

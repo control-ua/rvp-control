@@ -57,6 +57,7 @@ function App() {
   const [newApplication, setNewApplication] = useState<NewApplicationNotification | null>(null);
   const [unreadApplications, setUnreadApplications] = useState(0);
   const notificationTimer = useRef<number | null>(null);
+  const lastSeenApplicationId = useRef<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -126,29 +127,90 @@ function App() {
   useEffect(() => {
     if (!session) return;
 
+    const showApplicationAlert = (row: Record<string, any>) => {
+      const id = String(row.id ?? '');
+      if (!id || lastSeenApplicationId.current === id) return;
+
+      lastSeenApplicationId.current = id;
+
+      const application: NewApplicationNotification = {
+        id,
+        number: String(row.application_number || row.number || row.code || 'Нова'),
+        object: String(row.title || row.object_name || row.object || row.station_name || 'Новий обʼєкт'),
+        address: String(row.address || row.object_address || row.location || ''),
+      };
+
+      setNewApplication(application);
+      setUnreadApplications(prev => prev + 1);
+      playNotificationSound();
+      showBrowserNotification(application);
+
+      if (notificationTimer.current) {
+        window.clearTimeout(notificationTimer.current);
+      }
+      notificationTimer.current = window.setTimeout(
+        () => setNewApplication(null),
+        15000,
+      );
+    };
+
+    // Remember the latest existing application so old rows don't trigger after login.
+    supabase
+      .from('applications')
+      .select('id')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.id) lastSeenApplicationId.current = String(data.id);
+      });
+
     const channel = supabase
       .channel('applications-notifications')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'applications' }, payload => {
-        const row = payload.new as Record<string, any>;
-        const application: NewApplicationNotification = {
-          id: String(row.id ?? ''),
-          number: String(row.application_number || row.number || row.code || 'Нова'),
-          object: String(row.title || row.object_name || row.object || row.station_name || 'Новий обʼєкт'),
-          address: String(row.address || row.object_address || row.location || ''),
-        };
-
-        setNewApplication(application);
-        setUnreadApplications(prev => prev + 1);
-        playNotificationSound();
-        showBrowserNotification(application);
-
-        if (notificationTimer.current) window.clearTimeout(notificationTimer.current);
-        notificationTimer.current = window.setTimeout(() => setNewApplication(null), 15000);
-      })
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'applications' },
+        payload => showApplicationAlert(payload.new as Record<string, any>),
+      )
       .subscribe();
+
+    // iPhone/PWA fallback: check the newest row every 15 seconds.
+    const interval = window.setInterval(async () => {
+      if (document.visibilityState !== 'visible') return;
+
+      const { data } = await supabase
+        .from('applications')
+        .select('id, application_number, title, address, created_at')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (data?.id && lastSeenApplicationId.current && String(data.id) !== lastSeenApplicationId.current) {
+        showApplicationAlert(data as Record<string, any>);
+      } else if (data?.id && !lastSeenApplicationId.current) {
+        lastSeenApplicationId.current = String(data.id);
+      }
+    }, 15000);
+
+    const onVisible = async () => {
+      if (document.visibilityState !== 'visible') return;
+      const { data } = await supabase
+        .from('applications')
+        .select('id, application_number, title, address, created_at')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (data?.id && lastSeenApplicationId.current && String(data.id) !== lastSeenApplicationId.current) {
+        showApplicationAlert(data as Record<string, any>);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
 
     return () => {
       if (notificationTimer.current) window.clearTimeout(notificationTimer.current);
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
       supabase.removeChannel(channel);
     };
   }, [session]);

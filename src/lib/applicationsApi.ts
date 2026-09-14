@@ -320,57 +320,52 @@ export async function assignApplicationContractor(
   await notifyAssignedApplication(applicationId);
 }
 
-export type DeleteAllApplicationsResult = {
+
+
+export type DeleteSelectedApplicationsResult = {
   total: number;
   deleted: number;
   failed: number;
   failedIds: string[];
 };
 
-export async function deleteAllApplications(): Promise<DeleteAllApplicationsResult> {
-  const { data: rows, error: loadError } = await supabase
-    .from('applications')
-    .select('id')
-    .order('created_at', { ascending: true });
+export async function deleteSelectedApplications(
+  applicationIds: string[],
+): Promise<DeleteSelectedApplicationsResult> {
+  const ids = [...new Set(
+    applicationIds
+      .map((id) => String(id || '').trim())
+      .filter(Boolean),
+  )];
 
-  if (loadError) {
-    throw new Error(`Не вдалося отримати список заявок: ${loadError.message}`);
+  if (ids.length === 0) {
+    return {
+      total: 0,
+      deleted: 0,
+      failed: 0,
+      failedIds: [],
+    };
   }
 
-  const ids = (rows ?? [])
-    .map((row: any) => String(row.id || '').trim())
-    .filter(Boolean);
+  const { data, error } = await supabase.functions.invoke('smart-api', {
+    body: {
+      action: 'delete_applications_bulk_from_web',
+      application_ids: ids,
+    },
+  });
 
-  let deleted = 0;
-  const failedIds: string[] = [];
+  if (error) {
+    throw new Error(`Не вдалося видалити заявки: ${error.message}`);
+  }
 
-  // Sequential calls are intentional: Telegram deleteMessage is rate-limited.
-  for (const applicationId of ids) {
-    try {
-      const { data, error } = await supabase.functions.invoke('smart-api', {
-        body: {
-          action: 'delete_application_from_web',
-          application_id: applicationId,
-        },
-      });
-
-      if (error || !data?.ok) {
-        failedIds.push(applicationId);
-        console.error('Delete application failed:', applicationId, error || data?.error);
-      } else {
-        deleted += 1;
-      }
-    } catch (error) {
-      failedIds.push(applicationId);
-      console.error('Delete application exception:', applicationId, error);
-    }
+  if (!data?.ok) {
+    throw new Error(data?.error || 'Не вдалося видалити вибрані заявки.');
   }
 
   return {
-    total: ids.length,
-    deleted,
-    failed: failedIds.length,
-    failedIds,
+    total: Number(data.total ?? ids.length),
+    deleted: Number(data.deleted ?? 0),
+    failed: Number(data.failed ?? 0),
+    failedIds: Array.isArray(data.failed_ids) ? data.failed_ids : [],
   };
 }
-

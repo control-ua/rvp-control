@@ -40,7 +40,7 @@ import {
   fetchLinkedActs,
   fetchWorkHistory,
   assignApplicationContractor,
-  deleteAllApplications,
+  deleteSelectedApplications,
   type LinkedAct,
   type WorkHistoryEntry,
 } from '@/lib/applicationsApi';
@@ -886,7 +886,8 @@ export default function Applications() {
   const [loading, setLoading] =
     useState(true);
 
-  const [deletingAll, setDeletingAll] = useState(false);
+  const [deletingSelected, setDeletingSelected] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
 
   const [error, setError] =
     useState<string | null>(null);
@@ -1182,28 +1183,70 @@ export default function Applications() {
     dateFrom ||
     dateTo;
 
-  const handleDeleteAllApplications = async () => {
-    if (applications.length === 0 || deletingAll) return;
+  const filteredIds = useMemo(
+    () => filtered.map((app) => app.id),
+    [filtered],
+  );
+
+  const allFilteredSelected =
+    filteredIds.length > 0 &&
+    filteredIds.every((id) => selectedIds.has(id));
+
+  const toggleSelected = (applicationId: string) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(applicationId)) {
+        next.delete(applicationId);
+      } else {
+        next.add(applicationId);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAllFiltered = () => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+
+      if (allFilteredSelected) {
+        filteredIds.forEach((id) => next.delete(id));
+      } else {
+        filteredIds.forEach((id) => next.add(id));
+      }
+
+      return next;
+    });
+  };
+
+  const handleDeleteSelectedApplications = async () => {
+    const ids = [...selectedIds];
+
+    if (ids.length === 0 || deletingSelected) return;
 
     const confirmed = window.confirm(
-      `Видалити ВСІ заявки (${applications.length})?\n\n` +
-        'Будуть видалені заявки з RVP Control, збережені картки в Telegram-боті та повʼязані повідомлення актів у робочій групі. Цю дію неможливо скасувати.'
+      `Видалити вибрані заявки (${ids.length})?\n\n` +
+        'Вони одразу зникнуть з RVP Control. Також буде виконано очищення ' +
+        'збережених карток у Telegram-боті та повʼязаних повідомлень актів у групі.'
     );
 
     if (!confirmed) return;
 
-    const confirmedAgain = window.confirm(
-      'Останнє підтвердження: точно очистити всі заявки?'
+    const previousApplications = applications;
+
+    // Optimistic UI: selected applications disappear immediately.
+    setApplications((current) =>
+      current.filter((app) => !selectedIds.has(app.id))
     );
+    setSelectedIds(new Set());
 
-    if (!confirmedAgain) return;
+    if (selected && ids.includes(selected.id)) {
+      setSelected(null);
+    }
 
-    setDeletingAll(true);
+    setDeletingSelected(true);
 
     try {
-      const result = await deleteAllApplications();
-      await loadApplications();
-      setSelected(null);
+      const result = await deleteSelectedApplications(ids);
 
       if (result.failed === 0) {
         showToast(`Видалено ${result.deleted} заявок`, 'success');
@@ -1212,14 +1255,20 @@ export default function Applications() {
           `Видалено ${result.deleted} з ${result.total}. Не вдалося: ${result.failed}`,
           'error'
         );
+
+        // Reload only when the backend reported partial failure.
+        await loadApplications();
       }
     } catch (error) {
+      // Restore immediately if the server request itself failed.
+      setApplications(previousApplications);
       showToast(
-        error instanceof Error ? error.message : 'Не вдалося очистити заявки',
+        error instanceof Error ? error.message : 'Не вдалося видалити вибрані заявки',
         'error'
       );
+      await loadApplications().catch(() => undefined);
     } finally {
-      setDeletingAll(false);
+      setDeletingSelected(false);
     }
   };
 
@@ -1232,18 +1281,33 @@ export default function Applications() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handleDeleteAllApplications}
-              disabled={deletingAll || applications.length === 0}
-              className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-300 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-40"
-              title="Видалити всі заявки з RVP Control і Telegram"
+              onClick={toggleSelectAllFiltered}
+              disabled={filtered.length === 0 || deletingSelected}
+              className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-medium text-slate-300 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
+              title="Вибрати всі заявки, які зараз показані"
             >
-              {deletingAll ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                <Trash2 size={16} />
-              )}
-              <span className="hidden sm:inline">Очистити всі</span>
+              <CheckCircle2 size={16} />
+              <span className="hidden sm:inline">
+                {allFilteredSelected ? 'Зняти вибір' : 'Вибрати всі'}
+              </span>
             </button>
+
+            {selectedIds.size > 0 && (
+              <button
+                type="button"
+                onClick={handleDeleteSelectedApplications}
+                disabled={deletingSelected}
+                className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-300 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                title="Видалити вибрані заявки з RVP Control і Telegram"
+              >
+                {deletingSelected ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Trash2 size={16} />
+                )}
+                <span>Видалити ({selectedIds.size})</span>
+              </button>
+            )}
 
             <button
               onClick={() => setShowNewModal(true)}
@@ -1481,13 +1545,36 @@ export default function Applications() {
                       setSelected(app);
                     }
                   }}
-                  className="relative w-full overflow-hidden rounded-2xl border border-white/5 bg-[#141720] p-4 pl-5 text-left shadow-[0_10px_30px_rgba(0,0,0,0.15)] transition active:scale-[0.99]"
+                  className={`relative w-full overflow-hidden rounded-2xl border bg-[#141720] p-4 pl-5 text-left shadow-[0_10px_30px_rgba(0,0,0,0.15)] transition active:scale-[0.99] ${
+                    selectedIds.has(app.id)
+                      ? 'border-red-500/40 ring-1 ring-red-500/20'
+                      : 'border-white/5'
+                  }`}
                 >
+                  <button
+                    type="button"
+                    aria-label={selectedIds.has(app.id) ? 'Зняти вибір' : 'Вибрати заявку'}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      toggleSelected(app.id);
+                    }}
+                    className={`absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-lg border transition ${
+                      selectedIds.has(app.id)
+                        ? 'border-red-500/40 bg-red-500/15 text-red-300'
+                        : 'border-white/10 bg-[#0d1118]/90 text-slate-500'
+                    }`}
+                  >
+                    {selectedIds.has(app.id) ? (
+                      <CheckCircle2 size={17} />
+                    ) : (
+                      <span className="h-4 w-4 rounded border border-current" />
+                    )}
+                  </button>
                   <span
                     className={`absolute inset-y-0 left-0 w-1 ${MOBILE_STATUS_ACCENT[app.status]}`}
                   />
 
-                  <div className="mb-3 flex items-start justify-between gap-3">
+                  <div className="mb-3 flex items-start justify-between gap-3 pr-10">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                         <span className="font-mono text-lg font-bold tracking-tight text-blue-400">
@@ -1591,6 +1678,20 @@ export default function Applications() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/5 bg-white/[0.02]">
+                  <th className="w-12 px-4 py-3">
+                    <button
+                      type="button"
+                      onClick={toggleSelectAllFiltered}
+                      className={`flex h-5 w-5 items-center justify-center rounded border ${
+                        allFilteredSelected
+                          ? 'border-red-500/50 bg-red-500/15 text-red-300'
+                          : 'border-white/15 text-slate-500'
+                      }`}
+                      aria-label={allFilteredSelected ? 'Зняти вибір' : 'Вибрати всі'}
+                    >
+                      {allFilteredSelected && <CheckCircle2 size={14} />}
+                    </button>
+                  </th>
                   {[
                     '№ заявки',
                     'Дата',
@@ -1616,7 +1717,7 @@ export default function Applications() {
                 {loading ? (
                   <tr>
                     <td
-                      colSpan={9}
+                      colSpan={10}
                       className="text-center py-12"
                     >
                       <div className="flex items-center justify-center gap-2 text-slate-500">
@@ -1634,7 +1735,7 @@ export default function Applications() {
                 ) : error ? (
                   <tr>
                     <td
-                      colSpan={9}
+                      colSpan={10}
                       className="text-center py-12"
                     >
                       <div className="flex flex-col items-center gap-3 text-slate-500">
@@ -1665,7 +1766,7 @@ export default function Applications() {
                   0 ? (
                   <tr>
                     <td
-                      colSpan={9}
+                      colSpan={10}
                       className="text-center py-12 text-slate-500"
                     >
                       Заявки не знайдено
@@ -1676,7 +1777,11 @@ export default function Applications() {
                     (app, index) => (
                       <tr
                         key={app.id}
-                        className={`border-b border-white/5 hover:bg-white/[0.02] transition-colors cursor-pointer ${
+                        className={`border-b hover:bg-white/[0.02] transition-colors cursor-pointer ${
+                          selectedIds.has(app.id)
+                            ? 'border-red-500/20 bg-red-500/[0.04]'
+                            : 'border-white/5'
+                        } ${
                           index ===
                           filtered.length -
                             1
@@ -1687,6 +1792,24 @@ export default function Applications() {
                           setSelected(app)
                         }
                       >
+                        <td className="px-4 py-3">
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              toggleSelected(app.id);
+                            }}
+                            className={`flex h-5 w-5 items-center justify-center rounded border ${
+                              selectedIds.has(app.id)
+                                ? 'border-red-500/50 bg-red-500/15 text-red-300'
+                                : 'border-white/15 text-slate-500'
+                            }`}
+                            aria-label={selectedIds.has(app.id) ? 'Зняти вибір' : 'Вибрати заявку'}
+                          >
+                            {selectedIds.has(app.id) && <CheckCircle2 size={14} />}
+                          </button>
+                        </td>
+
                         <td className="px-4 py-3">
                           <span className="font-mono text-xs text-blue-400">
                             {app.number}
@@ -1721,12 +1844,8 @@ export default function Applications() {
 
                         <td className="px-4 py-3">
                           <StatusBadge
-                            label={
-                              app.status
-                            }
-                            className={getApplicationStatusColor(
-                              app.status
-                            )}
+                            label={isApplicationOverdue(app) ? 'Прострочена' : app.status}
+                            className={applicationStatusColor(app)}
                           />
                         </td>
 

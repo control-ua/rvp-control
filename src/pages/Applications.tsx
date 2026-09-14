@@ -72,7 +72,6 @@ import {
 
 const STATUSES: ApplicationStatus[] = [
   'Нова',
-  'Прийнята',
   'В роботі',
   'Виконана',
   'Скасована',
@@ -87,17 +86,47 @@ const MOBILE_STATUS_ACCENT: Record<ApplicationStatus, string> = {
 };
 
 
-function isApplicationOverdue(app: Application) {
-  if (!app.deadline) return false;
+function isStatusOverdue(
+  deadlineValue: string | undefined,
+  status: ApplicationStatus,
+) {
+  if (!deadlineValue) return false;
 
-  const deadline = new Date(app.deadline);
+  const deadline = new Date(deadlineValue);
   if (Number.isNaN(deadline.getTime())) return false;
 
   const finished =
-    app.status === 'Виконана' ||
-    app.status === 'Скасована';
+    status === 'Виконана' ||
+    status === 'Скасована';
 
   return !finished && deadline < new Date();
+}
+
+function isApplicationOverdue(app: Application) {
+  return isStatusOverdue(app.deadline, app.status);
+}
+
+function overdueDurationText(deadlineValue?: string) {
+  if (!deadlineValue) return '';
+  const deadline = new Date(deadlineValue);
+  if (Number.isNaN(deadline.getTime())) return '';
+
+  const diffMs = Date.now() - deadline.getTime();
+  if (diffMs <= 0) return '';
+
+  const totalHours = Math.max(1, Math.floor(diffMs / 3_600_000));
+  if (totalHours < 24) return `Прострочено на ${totalHours} год.`;
+
+  const days = Math.floor(totalHours / 24);
+  const hours = totalHours % 24;
+  return hours > 0
+    ? `Прострочено на ${days} дн. ${hours} год.`
+    : `Прострочено на ${days} дн.`;
+}
+
+function displayApplicationStatus(app: Application) {
+  if (isApplicationOverdue(app)) return 'Прострочена';
+  return app.status === 'Прийнята' ? 'Нова' : app.status;
 }
 
 function applicationStatusColor(app: Application) {
@@ -154,6 +183,17 @@ function ApplicationModal({
   const [changingStatus, setChangingStatus] =
     useState<'in_progress' | 'completed' | null>(null);
 
+  const [visibleStatus, setVisibleStatus] =
+    useState<ApplicationStatus>(
+      app.status === 'Прийнята' ? 'Нова' : app.status
+    );
+
+  useEffect(() => {
+    setVisibleStatus(
+      app.status === 'Прийнята' ? 'Нова' : app.status
+    );
+  }, [app.status, app.id]);
+
   const [linkedActs, setLinkedActs] =
     useState<LinkedAct[]>([]);
 
@@ -204,6 +244,12 @@ function ApplicationModal({
   const handleStatusChange = async (
     status: 'in_progress' | 'completed'
   ) => {
+    const previousStatus = visibleStatus;
+    const optimisticStatus: ApplicationStatus =
+      status === 'in_progress' ? 'В роботі' : 'Виконана';
+
+    // Мгновенно меняем интерфейс, не ждём ответа сети.
+    setVisibleStatus(optimisticStatus);
     setChangingStatus(status);
 
     try {
@@ -212,24 +258,20 @@ function ApplicationModal({
         status
       );
 
-      if (result.telegramUpdated) {
-        showToast(
-          status === 'in_progress'
-            ? 'Статус змінено на «В роботі». Картку в Telegram оновлено.'
-            : 'Статус змінено на «Виконано». Картку в Telegram оновлено.',
-          'success'
-        );
-      } else {
-        showToast(
-          result.warning ||
-            'Статус у RVP Control змінено, але картку Telegram не вдалося оновити.',
-          'info'
-        );
-      }
+      showToast(
+        result.telegramUpdated
+          ? status === 'in_progress'
+            ? 'Статус: «В роботі». Telegram-картку оновлено.'
+            : 'Статус: «Виконана». Telegram-картку оновлено.'
+          : result.warning ||
+            'Статус змінено. Telegram-картка поки не оновилась.',
+        result.telegramUpdated ? 'success' : 'info'
+      );
 
+      // Обновляем список в фоне, но модальное окно не закрываем.
       await onAssigned();
-      onClose();
     } catch (err) {
+      setVisibleStatus(previousStatus);
       showToast(
         err instanceof Error
           ? err.message
@@ -373,8 +415,16 @@ function ApplicationModal({
             </span>
 
             <StatusBadge
-              label={isApplicationOverdue(app) ? 'Прострочена' : app.status}
-              className={applicationStatusColor(app)}
+              label={
+                isStatusOverdue(app.deadline, visibleStatus)
+                  ? 'Прострочена'
+                  : visibleStatus
+              }
+              className={
+                isStatusOverdue(app.deadline, visibleStatus)
+                  ? 'bg-rose-500/15 text-rose-300 border border-rose-500/30'
+                  : getApplicationStatusColor(visibleStatus)
+              }
             />
           </div>
 
@@ -386,133 +436,82 @@ function ApplicationModal({
           </button>
         </div>
 
-        <div className="p-6 space-y-6">
-          <section>
-            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
-              Об&apos;єкт
-            </h3>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <DetailRow
-                label="Назва"
-                value={app.customer}
-              />
-
-              <DetailRow
-                label="Код АЗК"
-                value={
-                  <span className="flex items-center gap-1">
-                    <Hash
-                      size={12}
-                      className="text-slate-500"
-                    />
-                    {app.azkCode ?? '—'}
-                  </span>
-                }
-              />
-
-              <div className="col-span-2">
-                <DetailRow
-                  label="Адреса"
-                  value={
-                    <span className="flex items-center gap-1">
-                      <MapPin
-                        size={12}
-                        className="text-slate-500 shrink-0"
-                      />
-                      {app.address}
-                    </span>
-                  }
-                />
+        <div className="p-4 sm:p-5 space-y-4">
+          <section
+            className={`rounded-2xl border p-4 ${
+              isStatusOverdue(app.deadline, visibleStatus)
+                ? 'border-rose-500/40 bg-rose-500/[0.06] shadow-[0_0_0_1px_rgba(244,63,94,0.08)]'
+                : 'border-white/5 bg-white/[0.025]'
+            }`}
+          >
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="min-w-0">
+                <p className="text-[11px] uppercase tracking-wider text-slate-500">Об&apos;єкт</p>
+                <p className="mt-0.5 truncate text-base font-semibold text-white">
+                  {app.customer || '—'}
+                </p>
               </div>
 
-              <div className="col-span-2">
-                <DetailRow
-                  label="Опис / потреба"
-                  value={
-                    app.description ||
-                    '—'
+              <div className="min-w-0 sm:text-right">
+                <p className="text-[11px] uppercase tracking-wider text-slate-500">Підрядник</p>
+                <p className="mt-0.5 truncate text-sm font-medium text-slate-200">
+                  {app.contractorName && app.contractorName !== '—'
+                    ? app.contractorName
+                    : 'Не призначено'}
+                </p>
+              </div>
+
+              <div className="sm:col-span-2 flex items-start gap-2 text-sm text-slate-300">
+                <MapPin size={15} className="mt-0.5 shrink-0 text-slate-500" />
+                <span className="leading-5">{app.address || 'Адреса не вказана'}</span>
+              </div>
+
+              <div className="flex items-center gap-2 text-sm text-slate-300">
+                <Calendar size={15} className="shrink-0 text-slate-500" />
+                <span>
+                  {app.deadline ? formatDateTime(app.deadline) : 'Без дедлайну'}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 sm:justify-end">
+                <StatusBadge
+                  label={
+                    isStatusOverdue(app.deadline, visibleStatus)
+                      ? 'Прострочена'
+                      : visibleStatus
+                  }
+                  className={
+                    isStatusOverdue(app.deadline, visibleStatus)
+                      ? 'bg-rose-500/15 text-rose-300 border border-rose-500/30'
+                      : getApplicationStatusColor(visibleStatus)
                   }
                 />
               </div>
             </div>
+
+            {isStatusOverdue(app.deadline, visibleStatus) && (
+              <div className="mt-3 rounded-xl border border-rose-500/25 bg-rose-500/10 px-3 py-2 text-sm font-semibold text-rose-300">
+                ⚠️ {overdueDurationText(app.deadline)}
+              </div>
+            )}
           </section>
 
-          <div className="h-px bg-white/5" />
-
           <section>
-            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
-              Планування
-            </h3>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <DetailRow
-                label="Дата заявки"
-                value={
-                  formatDate(app.date)
-                }
-              />
-
-              <DetailRow
-                label="Дедлайн"
-                value={
-                  app.deadline ? (
-                    <span className="flex items-center gap-1">
-                      <Calendar
-                        size={12}
-                        className="text-slate-500"
-                      />
-                      {formatDate(
-                        app.deadline
-                      )}
-                    </span>
-                  ) : (
-                    '—'
-                  )
-                }
-              />
-
-              {app.scheduledDate && (
-                <DetailRow
-                  label="Запланований виїзд"
-                  value={
-                    <span className="flex items-center gap-1">
-                      <Calendar
-                        size={12}
-                        className="text-slate-500"
-                      />
-                      {formatDateTime(
-                        app.scheduledDate
-                      )}
-                    </span>
-                  }
-                />
-              )}
-            </div>
-          </section>
-
-          <div className="h-px bg-white/5" />
-
-          <section>
-            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
-              Статус заявки
-            </h3>
-
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => handleStatusChange('in_progress')}
                 disabled={
                   changingStatus !== null ||
-                  app.status === 'В роботі' ||
-                  app.status === 'Виконана' ||
-                  app.status === 'Скасована'
+                  visibleStatus === 'В роботі' ||
+                  visibleStatus === 'Виконана' ||
+                  visibleStatus === 'Скасована'
                 }
-                className="rounded-xl border border-blue-500/25 bg-blue-500/10 px-4 py-3 text-sm font-semibold text-blue-300 hover:bg-blue-500/15 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-blue-500/25 bg-blue-500/10 px-3 text-sm font-semibold text-blue-300 transition-colors hover:bg-blue-500/15 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {changingStatus === 'in_progress' ? (
-                  <Loader2 size={15} className="animate-spin" />
+                  <Loader2 size={16} className="animate-spin" />
                 ) : (
-                  <Clock size={15} />
+                  <Clock size={16} />
                 )}
                 В роботу
               </button>
@@ -521,24 +520,37 @@ function ApplicationModal({
                 onClick={() => handleStatusChange('completed')}
                 disabled={
                   changingStatus !== null ||
-                  app.status === 'Виконана' ||
-                  app.status === 'Скасована'
+                  visibleStatus === 'Виконана' ||
+                  visibleStatus === 'Скасована'
                 }
-                className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-300 hover:bg-emerald-500/15 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-3 text-sm font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {changingStatus === 'completed' ? (
-                  <Loader2 size={15} className="animate-spin" />
+                  <Loader2 size={16} className="animate-spin" />
                 ) : (
-                  <CheckCircle2 size={15} />
+                  <CheckCircle2 size={16} />
                 )}
-                Виконано
+                Виконана
               </button>
             </div>
-
-            <p className="mt-2 text-xs text-slate-500">
-              Статус синхронізується з карткою заявки в Telegram.
-            </p>
           </section>
+
+          <details className="group rounded-xl border border-white/5 bg-white/[0.02]">
+            <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-medium text-slate-300">
+              Деталі заявки
+              <ChevronDown size={16} className="transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="grid grid-cols-1 gap-4 border-t border-white/5 px-4 py-4 sm:grid-cols-2">
+              <DetailRow label="Код АЗК" value={app.azkCode ?? '—'} />
+              <DetailRow label="Дата заявки" value={formatDate(app.date)} />
+              {app.scheduledDate && (
+                <DetailRow label="Запланований виїзд" value={formatDateTime(app.scheduledDate)} />
+              )}
+              <div className="sm:col-span-2">
+                <DetailRow label="Опис / потреба" value={app.description || '—'} />
+              </div>
+            </div>
+          </details>
 
           <div className="h-px bg-white/5" />
 
@@ -784,43 +796,49 @@ function ApplicationModal({
               </p>
             ) : (
               <div className="space-y-2">
-                {linkedActs.map(
-                  (act) => (
+                {linkedActs.map((act) => {
+                  const previewUrl = act.previewFileId
+                    ? telegramFileUrl(act.previewFileId)
+                    : null;
+                  const isPhoto =
+                    act.previewFileType === 'photo' ||
+                    Boolean(act.previewFileName?.match(/\.(jpg|jpeg|png|webp)$/i));
+
+                  return (
                     <div
                       key={act.id}
-                      className="flex items-center justify-between bg-white/[0.03] rounded-lg px-4 py-3"
+                      className="flex items-center gap-3 rounded-xl border border-white/5 bg-white/[0.025] p-2.5"
                     >
-                      <div className="flex items-center gap-3">
-                        <FileText
-                          size={16}
-                          className="text-slate-500"
-                        />
-
-                        <div>
-                          <span className="font-mono text-xs text-blue-400">
-                            {act.actNumber ??
-                              '—'}
-                          </span>
-
-                          <p className="text-xs text-slate-500 mt-0.5">
-                            {formatDate(
-                              act.createdAt
-                            )}
-                          </p>
-                        </div>
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/5 bg-[#0d1118]">
+                        {previewUrl && isPhoto ? (
+                          <img
+                            src={previewUrl}
+                            alt={act.actNumber || 'Акт'}
+                            className="h-full w-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <FileText size={20} className="text-slate-500" />
+                        )}
                       </div>
 
-                      <StatusBadge
-                        label={actStatusLabel(
-                          act.status
-                        )}
-                        className={getActStatusColor(
-                          act.status
-                        )}
-                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate font-mono text-xs font-semibold text-blue-400">
+                            {act.actNumber ?? '—'}
+                          </span>
+                          <StatusBadge
+                            label={actStatusLabel(act.status)}
+                            className={getActStatusColor(act.status)}
+                          />
+                        </div>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {formatDate(act.createdAt)}
+                        </p>
+                      </div>
                     </div>
-                  )
-                )}
+                  );
+                })}
               </div>
             )}
           </section>
@@ -1638,10 +1656,12 @@ export default function Applications() {
                       setSelected(app);
                     }
                   }}
-                  className={`relative w-full overflow-hidden rounded-2xl border bg-[#141720] p-4 pl-5 text-left shadow-[0_10px_30px_rgba(0,0,0,0.15)] transition active:scale-[0.99] ${
-                    selectedIds.has(app.id)
-                      ? 'border-red-500/40 ring-1 ring-red-500/20'
-                      : 'border-white/5'
+                  className={`relative w-full overflow-hidden rounded-2xl border bg-[#141720] p-3.5 pl-4.5 text-left shadow-[0_10px_30px_rgba(0,0,0,0.15)] transition active:scale-[0.99] ${
+                    isApplicationOverdue(app)
+                      ? 'border-rose-500/50 bg-rose-500/[0.035] ring-1 ring-rose-500/15'
+                      : selectedIds.has(app.id)
+                        ? 'border-red-500/40 ring-1 ring-red-500/20'
+                        : 'border-white/5'
                   }`}
                 >
                   <button
@@ -1684,12 +1704,18 @@ export default function Applications() {
                     </div>
 
                     <StatusBadge
-                      label={isApplicationOverdue(app) ? 'Прострочена' : app.status}
+                      label={displayApplicationStatus(app)}
                       className={applicationStatusColor(app)}
                     />
                   </div>
 
-                  <div className="space-y-2.5">
+                  {isApplicationOverdue(app) && (
+                    <div className="mb-2 rounded-lg border border-rose-500/20 bg-rose-500/10 px-2.5 py-1.5 text-xs font-semibold text-rose-300">
+                      ⚠️ {overdueDurationText(app.deadline)}
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
                     <div className="flex items-start gap-2 text-sm text-slate-400">
                       <MapPin size={16} className="mt-0.5 shrink-0 text-slate-600" />
                       <span className="line-clamp-2 leading-5">
@@ -1719,7 +1745,7 @@ export default function Applications() {
                       <a
                         href={`tel:${callPhone}`}
                         onClick={(event) => event.stopPropagation()}
-                        className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-white/5 bg-white/[0.035] px-2 text-xs font-medium text-slate-300 active:bg-white/[0.08]"
+                        className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border border-white/5 bg-white/[0.035] px-2 text-xs font-medium text-slate-300 active:bg-white/[0.08]"
                       >
                         <Phone size={15} />
                         Подзвонити
@@ -1729,7 +1755,7 @@ export default function Applications() {
                         type="button"
                         disabled
                         onClick={(event) => event.stopPropagation()}
-                        className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-white/5 bg-white/[0.02] px-2 text-xs font-medium text-slate-600"
+                        className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border border-white/5 bg-white/[0.02] px-2 text-xs font-medium text-slate-600"
                       >
                         <Phone size={15} />
                         Подзвонити
@@ -1742,7 +1768,7 @@ export default function Applications() {
                         event.stopPropagation();
                         setSelected(app);
                       }}
-                      className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-blue-500/15 bg-blue-500/[0.07] px-2 text-xs font-medium text-blue-400 active:bg-blue-500/[0.13]"
+                      className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border border-blue-500/15 bg-blue-500/[0.07] px-2 text-xs font-medium text-blue-400 active:bg-blue-500/[0.13]"
                     >
                       <ExternalLink size={15} />
                       Відкрити
@@ -1754,7 +1780,7 @@ export default function Applications() {
                         event.stopPropagation();
                         setSelected(app);
                       }}
-                      className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-violet-500/15 bg-violet-500/[0.07] px-2 text-xs font-medium text-violet-400 active:bg-violet-500/[0.13]"
+                      className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border border-violet-500/15 bg-violet-500/[0.07] px-2 text-xs font-medium text-violet-400 active:bg-violet-500/[0.13]"
                     >
                       <User size={15} />
                       Призначити
@@ -1937,7 +1963,7 @@ export default function Applications() {
 
                         <td className="px-4 py-3">
                           <StatusBadge
-                            label={isApplicationOverdue(app) ? 'Прострочена' : app.status}
+                            label={displayApplicationStatus(app)}
                             className={applicationStatusColor(app)}
                           />
                         </td>

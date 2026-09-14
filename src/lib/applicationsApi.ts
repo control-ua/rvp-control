@@ -93,7 +93,7 @@ function mapRowToApplication(row: ApplicationRow): Application {
     contractorName,
     contractorPhone,
     phone: contractorPhone,
-    status: normalizeStatus(row.status),
+    status: row.status === 'assigned' ? 'Нова' : normalizeStatus(row.status),
     amount: Number(row.payout_amount ?? 0),
     scheduledDate: row.scheduled_at ?? '',
     description: row.description ?? '',
@@ -146,6 +146,9 @@ export interface LinkedAct {
   actNumber: string | null;
   status: string;
   createdAt: string;
+  previewFileId: string | null;
+  previewFileType: string | null;
+  previewFileName: string | null;
 }
 
 export interface WorkHistoryEntry {
@@ -158,7 +161,18 @@ export interface WorkHistoryEntry {
 export async function fetchLinkedActs(applicationId: string): Promise<LinkedAct[]> {
   const { data, error } = await supabase
     .from('acts')
-    .select('id, act_number, status, created_at')
+    .select(`
+      id,
+      act_number,
+      status,
+      created_at,
+      act_files (
+        telegram_file_id,
+        file_type,
+        file_name,
+        created_at
+      )
+    `)
     .eq('application_id', applicationId)
     .order('created_at', { ascending: false });
 
@@ -166,12 +180,24 @@ export async function fetchLinkedActs(applicationId: string): Promise<LinkedAct[
     throw new Error(`Не вдалося завантажити акти: ${error.message}`);
   }
 
-  return (data ?? []).map((row: any) => ({
-    id: row.id,
-    actNumber: row.act_number ?? null,
-    status: row.status,
-    createdAt: row.created_at,
-  }));
+  return (data ?? []).map((row: any) => {
+    const files = Array.isArray(row.act_files)
+      ? [...row.act_files].sort((a: any, b: any) =>
+          String(a?.created_at || '').localeCompare(String(b?.created_at || ''))
+        )
+      : [];
+    const preview = files[0] || null;
+
+    return {
+      id: row.id,
+      actNumber: row.act_number ?? null,
+      status: row.status,
+      createdAt: row.created_at,
+      previewFileId: preview?.telegram_file_id ?? null,
+      previewFileType: preview?.file_type ?? null,
+      previewFileName: preview?.file_name ?? null,
+    };
+  });
 }
 
 export async function fetchWorkHistory(applicationId: string): Promise<WorkHistoryEntry[]> {

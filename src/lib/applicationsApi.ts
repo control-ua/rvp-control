@@ -390,7 +390,26 @@ export async function updateApplicationStatus(
     throw new Error('ID заявки відсутній.');
   }
 
+  // Explicitly attach the CURRENT user JWT. This avoids cases where
+  // functions.invoke() reaches smart-api with only the project key and
+  // smart-api cannot identify the logged-in admin.
+  const { data: sessionData, error: sessionError } =
+    await supabase.auth.getSession();
+
+  if (sessionError) {
+    throw new Error(`Не вдалося перевірити сесію: ${sessionError.message}`);
+  }
+
+  const accessToken = sessionData.session?.access_token;
+
+  if (!accessToken) {
+    throw new Error('Сесія завершилась. Вийдіть з RVP Control і увійдіть знову.');
+  }
+
   const { data, error } = await supabase.functions.invoke('smart-api', {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
     body: {
       action: 'update_application_status_from_web',
       application_id: applicationId,
@@ -399,7 +418,19 @@ export async function updateApplicationStatus(
   });
 
   if (error) {
-    throw new Error(`Не вдалося змінити статус: ${error.message}`);
+    let details = error.message;
+
+    try {
+      const context = (error as any)?.context;
+      if (context && typeof context.json === 'function') {
+        const body = await context.json();
+        if (body?.error) details = String(body.error);
+      }
+    } catch {
+      // Keep original functions error message.
+    }
+
+    throw new Error(`Не вдалося змінити статус: ${details}`);
   }
 
   if (!data?.ok) {

@@ -84,7 +84,9 @@ function mapRowToApplication(row: ApplicationRow): Application {
   return {
     id: row.id,
     number: row.application_number ?? '—',
-    date: row.order_date_text ?? row.created_at,
+    // order_date_text can contain human text like 'завтра до 18:00',
+    // so it must not be passed to Date/formatDate. Use the real ISO timestamp.
+    date: row.created_at,
     customer: row.title,
     address: row.address ?? '—',
     contractorId: row.contractor_id ?? '',

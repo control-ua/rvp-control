@@ -369,3 +369,45 @@ export async function deleteSelectedApplications(
     failedIds: Array.isArray(data.failed_ids) ? data.failed_ids : [],
   };
 }
+
+
+export type SyncedApplicationStatus = 'new' | 'in_progress' | 'completed';
+
+export type UpdateApplicationStatusResult = {
+  ok: boolean;
+  status: SyncedApplicationStatus;
+  telegramUpdated: boolean;
+  warning?: string;
+};
+
+export async function updateApplicationStatus(
+  applicationId: string,
+  status: SyncedApplicationStatus,
+): Promise<UpdateApplicationStatusResult> {
+  if (!applicationId) {
+    throw new Error('ID заявки відсутній.');
+  }
+
+  const { data, error } = await supabase.functions.invoke('smart-api', {
+    body: {
+      action: 'update_application_status_from_web',
+      application_id: applicationId,
+      status,
+    },
+  });
+
+  if (error) {
+    throw new Error(`Не вдалося змінити статус: ${error.message}`);
+  }
+
+  if (!data?.ok) {
+    throw new Error(data?.error || 'Не вдалося змінити статус заявки.');
+  }
+
+  return {
+    ok: true,
+    status,
+    telegramUpdated: data?.telegram_updated === true,
+    warning: data?.warning || undefined,
+  };
+}

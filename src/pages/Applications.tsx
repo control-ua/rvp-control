@@ -41,6 +41,7 @@ import {
   fetchWorkHistory,
   assignApplicationContractor,
   deleteSelectedApplications,
+  updateApplicationStatus,
   type LinkedAct,
   type WorkHistoryEntry,
 } from '@/lib/applicationsApi';
@@ -150,6 +151,9 @@ function ApplicationModal({
   const [assigning, setAssigning] =
     useState(false);
 
+  const [changingStatus, setChangingStatus] =
+    useState<'in_progress' | 'completed' | null>(null);
+
   const [linkedActs, setLinkedActs] =
     useState<LinkedAct[]>([]);
 
@@ -195,6 +199,46 @@ function ApplicationModal({
       telegramFileUrl(app.payoutReceipt);
 
     setReceiptUrl(url);
+  };
+
+  const handleStatusChange = async (
+    status: 'in_progress' | 'completed'
+  ) => {
+    setChangingStatus(status);
+
+    try {
+      const result = await updateApplicationStatus(
+        app.id,
+        status
+      );
+
+      if (result.telegramUpdated) {
+        showToast(
+          status === 'in_progress'
+            ? 'Статус змінено на «В роботі». Картку в Telegram оновлено.'
+            : 'Статус змінено на «Виконано». Картку в Telegram оновлено.',
+          'success'
+        );
+      } else {
+        showToast(
+          result.warning ||
+            'Статус у RVP Control змінено, але картку Telegram не вдалося оновити.',
+          'info'
+        );
+      }
+
+      await onAssigned();
+      onClose();
+    } catch (err) {
+      showToast(
+        err instanceof Error
+          ? err.message
+          : 'Не вдалося змінити статус',
+        'error'
+      );
+    } finally {
+      setChangingStatus(null);
+    }
   };
 
   const handleAssignContractor = async () => {
@@ -445,6 +489,55 @@ function ApplicationModal({
                 />
               )}
             </div>
+          </section>
+
+          <div className="h-px bg-white/5" />
+
+          <section>
+            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+              Статус заявки
+            </h3>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => handleStatusChange('in_progress')}
+                disabled={
+                  changingStatus !== null ||
+                  app.status === 'В роботі' ||
+                  app.status === 'Виконана' ||
+                  app.status === 'Скасована'
+                }
+                className="rounded-xl border border-blue-500/25 bg-blue-500/10 px-4 py-3 text-sm font-semibold text-blue-300 hover:bg-blue-500/15 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+              >
+                {changingStatus === 'in_progress' ? (
+                  <Loader2 size={15} className="animate-spin" />
+                ) : (
+                  <Clock size={15} />
+                )}
+                В роботу
+              </button>
+
+              <button
+                onClick={() => handleStatusChange('completed')}
+                disabled={
+                  changingStatus !== null ||
+                  app.status === 'Виконана' ||
+                  app.status === 'Скасована'
+                }
+                className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-300 hover:bg-emerald-500/15 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+              >
+                {changingStatus === 'completed' ? (
+                  <Loader2 size={15} className="animate-spin" />
+                ) : (
+                  <CheckCircle2 size={15} />
+                )}
+                Виконано
+              </button>
+            </div>
+
+            <p className="mt-2 text-xs text-slate-500">
+              Статус синхронізується з карткою заявки в Telegram.
+            </p>
           </section>
 
           <div className="h-px bg-white/5" />

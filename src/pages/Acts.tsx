@@ -49,98 +49,190 @@ function DetailRow({ label, value, mono }: { label: string; value: React.ReactNo
   );
 }
 
+function isImageFile(file: ActFile): boolean {
+  const type = (file.fileType ?? '').toLowerCase();
+  const name = (file.fileName ?? '').toLowerCase();
+
+  return (
+    type === 'photo' ||
+    type === 'image' ||
+    type.startsWith('image/') ||
+    /\.(png|jpe?g|webp|gif|bmp|heic|heif)$/i.test(name)
+  );
+}
+
 function FileGallery({ files }: { files: ActFile[] }) {
-  const [activeIndex, setActiveIndex] = useState(0);
-  const photoFiles = files.filter(f => f.fileType === 'photo');
-  const otherFiles = files.filter(f => f.fileType !== 'photo');
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const photoFiles = files.filter(isImageFile);
+  const otherFiles = files.filter(file => !isImageFile(file));
+
+  useEffect(() => {
+    setViewerIndex(null);
+  }, [files]);
+
+  useEffect(() => {
+    if (viewerIndex === null) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setViewerIndex(null);
+      }
+
+      if (event.key === 'ArrowLeft' && photoFiles.length > 1) {
+        setViewerIndex(index => {
+          if (index === null) return null;
+          return (index - 1 + photoFiles.length) % photoFiles.length;
+        });
+      }
+
+      if (event.key === 'ArrowRight' && photoFiles.length > 1) {
+        setViewerIndex(index => {
+          if (index === null) return null;
+          return (index + 1) % photoFiles.length;
+        });
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [viewerIndex, photoFiles.length]);
 
   if (photoFiles.length === 0 && otherFiles.length === 0) {
     return <p className="text-sm text-slate-500">Файлів немає</p>;
   }
 
+  const activePhoto = viewerIndex === null ? null : photoFiles[viewerIndex];
+
   return (
-    <div className="space-y-3">
-      {photoFiles.length > 0 && (
-        <div className="space-y-2">
-          <div className="relative rounded-xl overflow-hidden bg-white/[0.03] border border-white/5">
-            <div className="aspect-video flex items-center justify-center">
+    <>
+      <div className="space-y-2">
+        {photoFiles.map((file, index) => (
+          <button
+            type="button"
+            key={file.id}
+            onClick={() => {
+              console.log('ACT FILE CLICK', file);
+              setViewerIndex(index);
+            }}
+            className="group flex w-full cursor-pointer items-center gap-3 rounded-lg border border-white/5 bg-white/[0.03] p-3 text-left transition-colors hover:border-blue-500/30 hover:bg-white/[0.06]"
+            title="Відкрити фото"
+          >
+            <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-white/5">
               <TelegramImage
-                src={photoFiles[activeIndex].url}
-                alt={`Фото ${activeIndex + 1}`}
-                className="w-full h-full object-contain"
+                src={file.url}
+                alt={file.fileName ?? `Фото ${index + 1}`}
+                className="h-full w-full object-cover"
               />
             </div>
-            {photoFiles.length > 1 && (
-              <>
-                <button
-                  onClick={() => setActiveIndex(i => (i - 1 + photoFiles.length) % photoFiles.length)}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/80 transition-colors"
-                >
-                  <ChevronLeft size={20} />
-                </button>
-                <button
-                  onClick={() => setActiveIndex(i => (i + 1) % photoFiles.length)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/80 transition-colors"
-                >
-                  <ChevronRight size={20} />
-                </button>
-                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
-                  {photoFiles.map((_, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setActiveIndex(i)}
-                      className={`w-2 h-2 rounded-full transition-colors ${
-                        i === activeIndex ? 'bg-blue-400' : 'bg-white/20 hover:bg-white/40'
-                      }`}
-                    />
-                  ))}
-                </div>
-                <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm rounded-md px-2 py-0.5 text-xs text-slate-300">
-                  {activeIndex + 1} / {photoFiles.length}
-                </div>
-              </>
-            )}
-          </div>
-          {photoFiles.length > 1 && (
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {photoFiles.map((file, i) => (
-                <button
-                  key={file.id}
-                  onClick={() => setActiveIndex(i)}
-                  className={`shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-colors ${
-                    i === activeIndex ? 'border-blue-400' : 'border-transparent hover:border-white/20'
-                  }`}
-                >
-                  <TelegramImage
-                    src={file.url}
-                    alt={`Мініатюра ${i + 1}`}
-                    className="w-full h-full object-cover"
-                  />
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
-      {otherFiles.length > 0 && (
-        <div className="space-y-2">
-          {otherFiles.map(file => (
-            <div key={file.id} className="flex items-center gap-3 bg-white/[0.03] rounded-lg p-3 border border-white/5">
-              <div className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center shrink-0">
-                <FileText size={18} className="text-slate-400" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm text-slate-200 truncate">{file.fileName ?? 'Без назви'}</p>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {file.fileType} · {formatDate(file.createdAt)}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm text-slate-200 group-hover:text-white">
+                {file.fileName ?? `Фото ${index + 1}`}
+              </p>
+              <p className="mt-0.5 text-xs text-slate-500">
+                фото · {formatDate(file.createdAt)}
+              </p>
+            </div>
+
+            <span className="shrink-0 text-xs font-medium text-blue-400">
+              Переглянути
+            </span>
+          </button>
+        ))}
+
+        {otherFiles.map(file => (
+          <a
+            key={file.id}
+            href={file.url}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-3 rounded-lg border border-white/5 bg-white/[0.03] p-3 transition-colors hover:border-blue-500/20 hover:bg-white/[0.06]"
+          >
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/5">
+              <FileText size={18} className="text-slate-400" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm text-slate-200">{file.fileName ?? 'Без назви'}</p>
+              <p className="mt-0.5 text-xs text-slate-500">
+                {file.fileType} · {formatDate(file.createdAt)}
+              </p>
+            </div>
+          </a>
+        ))}
+      </div>
+
+      {activePhoto && createPortal(
+        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4">
+          <button
+            type="button"
+            aria-label="Закрити перегляд фото"
+            className="absolute inset-0 cursor-default bg-black/85 backdrop-blur-sm"
+            onClick={() => setViewerIndex(null)}
+          />
+
+          <div className="relative z-10 flex h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0d1018] shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-slate-200">
+                  {activePhoto.fileName ?? 'Фото акта'}
+                </p>
+                <p className="text-xs text-slate-500">
+                  {viewerIndex! + 1} / {photoFiles.length}
                 </p>
               </div>
+              <button
+                type="button"
+                onClick={() => setViewerIndex(null)}
+                className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
+                aria-label="Закрити"
+              >
+                <X size={20} />
+              </button>
             </div>
-          ))}
-        </div>
+
+            <div className="relative min-h-0 flex-1 bg-black/30">
+              <TelegramImage
+                src={activePhoto.url}
+                alt={activePhoto.fileName ?? 'Фото акта'}
+                className="h-full w-full object-contain"
+              />
+
+              {photoFiles.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setViewerIndex(index => index === null ? 0 : (index - 1 + photoFiles.length) % photoFiles.length)}
+                    className="absolute left-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-sm transition-colors hover:bg-black/80"
+                    aria-label="Попереднє фото"
+                  >
+                    <ChevronLeft size={24} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewerIndex(index => index === null ? 0 : (index + 1) % photoFiles.length)}
+                    className="absolute right-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-sm transition-colors hover:bg-black/80"
+                    aria-label="Наступне фото"
+                  >
+                    <ChevronRight size={24} />
+                  </button>
+                </>
+              )}
+            </div>
+
+            <div className="flex justify-end border-t border-white/10 px-4 py-3">
+              <button
+                type="button"
+                onClick={() => setViewerIndex(null)}
+                className="rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-slate-200 transition-colors hover:bg-white/15"
+              >
+                Закрити
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
       )}
-    </div>
+    </>
   );
 }
 

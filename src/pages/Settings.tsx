@@ -5,10 +5,17 @@ import {
   Save,
   Settings as SettingsIcon,
   Volume2,
+  Smartphone,
 } from 'lucide-react';
 
 import PageHeader from '@/components/PageHeader';
 import { useApp } from '@/context/AppContext';
+import {
+  disablePushNotifications,
+  enablePushNotifications,
+  getPushSubscription,
+  isPushSupported,
+} from '@/lib/pushNotifications';
 
 const STORAGE_KEY = 'rvp-control-settings';
 
@@ -29,8 +36,14 @@ const defaults: LocalSettings = {
 export default function Settings() {
   const { showToast } = useApp();
   const [settings, setSettings] = useState<LocalSettings>(defaults);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushSupported, setPushSupported] = useState(true);
 
   useEffect(() => {
+    setPushSupported(isPushSupported());
+    getPushSubscription().then(subscription => setPushEnabled(Boolean(subscription))).catch(() => setPushEnabled(false));
+
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
@@ -70,6 +83,30 @@ export default function Settings() {
     }
 
     showToast('Налаштування збережено', 'success');
+  };
+
+
+
+  const togglePush = async () => {
+    if (pushBusy) return;
+    setPushBusy(true);
+
+    try {
+      if (pushEnabled) {
+        await disablePushNotifications();
+        setPushEnabled(false);
+        showToast('Push-сповіщення вимкнено', 'success');
+      } else {
+        await enablePushNotifications();
+        setPushEnabled(true);
+        showToast('Push-сповіщення увімкнено', 'success');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Не вдалося змінити push-сповіщення';
+      showToast(message, 'error');
+    } finally {
+      setPushBusy(false);
+    }
   };
 
   const rows: Array<{
@@ -167,7 +204,45 @@ export default function Settings() {
           ))}
         </div>
 
-        <div className="rounded-xl border border-white/5 bg-[#141821] p-5">
+        <div className="space-y-5">
+          <div className="rounded-xl border border-cyan-400/15 bg-[#141821] p-5">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400">
+                <Smartphone size={17} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-white">Push на iPhone</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Отримувати системні сповіщення про нові заявки, навіть коли RVP Control згорнуто. На iPhone додайте сайт на екран «Додому» і дозвольте сповіщення.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              disabled={!pushSupported || pushBusy}
+              onClick={togglePush}
+              className={`mt-4 w-full rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                pushEnabled
+                  ? 'bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/20'
+                  : 'bg-cyan-500 text-[#061018] hover:bg-cyan-400'
+              }`}
+            >
+              {!pushSupported
+                ? 'Push не підтримується'
+                : pushBusy
+                  ? 'Зачекайте…'
+                  : pushEnabled
+                    ? '✓ Push увімкнено'
+                    : 'Увімкнути push'}
+            </button>
+
+            <p className="mt-3 text-[11px] leading-4 text-slate-600">
+              Звук відтворюється системою iPhone, якщо для RVP Control дозволені звуки у налаштуваннях iOS.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-white/5 bg-[#141821] p-5">
           <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
             Система
           </p>
@@ -192,6 +267,7 @@ export default function Settings() {
               <p className="text-xs text-slate-500">Realtime</p>
               <p className="mt-1 text-slate-200">Supabase Realtime</p>
             </div>
+          </div>
           </div>
         </div>
       </div>

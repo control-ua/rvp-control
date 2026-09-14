@@ -319,3 +319,58 @@ export async function assignApplicationContractor(
 
   await notifyAssignedApplication(applicationId);
 }
+
+export type DeleteAllApplicationsResult = {
+  total: number;
+  deleted: number;
+  failed: number;
+  failedIds: string[];
+};
+
+export async function deleteAllApplications(): Promise<DeleteAllApplicationsResult> {
+  const { data: rows, error: loadError } = await supabase
+    .from('applications')
+    .select('id')
+    .order('created_at', { ascending: true });
+
+  if (loadError) {
+    throw new Error(`Не вдалося отримати список заявок: ${loadError.message}`);
+  }
+
+  const ids = (rows ?? [])
+    .map((row: any) => String(row.id || '').trim())
+    .filter(Boolean);
+
+  let deleted = 0;
+  const failedIds: string[] = [];
+
+  // Sequential calls are intentional: Telegram deleteMessage is rate-limited.
+  for (const applicationId of ids) {
+    try {
+      const { data, error } = await supabase.functions.invoke('smart-api', {
+        body: {
+          action: 'delete_application_from_web',
+          application_id: applicationId,
+        },
+      });
+
+      if (error || !data?.ok) {
+        failedIds.push(applicationId);
+        console.error('Delete application failed:', applicationId, error || data?.error);
+      } else {
+        deleted += 1;
+      }
+    } catch (error) {
+      failedIds.push(applicationId);
+      console.error('Delete application exception:', applicationId, error);
+    }
+  }
+
+  return {
+    total: ids.length,
+    deleted,
+    failed: failedIds.length,
+    failedIds,
+  };
+}
+

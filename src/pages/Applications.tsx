@@ -27,6 +27,7 @@ import {
   CheckCircle2,
   ExternalLink,
   History,
+  Trash2,
 } from 'lucide-react';
 
 import StatusBadge from '@/components/StatusBadge';
@@ -39,6 +40,7 @@ import {
   fetchLinkedActs,
   fetchWorkHistory,
   assignApplicationContractor,
+  deleteAllApplications,
   type LinkedAct,
   type WorkHistoryEntry,
 } from '@/lib/applicationsApi';
@@ -884,6 +886,8 @@ export default function Applications() {
   const [loading, setLoading] =
     useState(true);
 
+  const [deletingAll, setDeletingAll] = useState(false);
+
   const [error, setError] =
     useState<string | null>(null);
 
@@ -1178,21 +1182,77 @@ export default function Applications() {
     dateFrom ||
     dateTo;
 
+  const handleDeleteAllApplications = async () => {
+    if (applications.length === 0 || deletingAll) return;
+
+    const confirmed = window.confirm(
+      `Видалити ВСІ заявки (${applications.length})?\n\n` +
+        'Будуть видалені заявки з RVP Control, збережені картки в Telegram-боті та повʼязані повідомлення актів у робочій групі. Цю дію неможливо скасувати.'
+    );
+
+    if (!confirmed) return;
+
+    const confirmedAgain = window.confirm(
+      'Останнє підтвердження: точно очистити всі заявки?'
+    );
+
+    if (!confirmedAgain) return;
+
+    setDeletingAll(true);
+
+    try {
+      const result = await deleteAllApplications();
+      await loadApplications();
+      setSelected(null);
+
+      if (result.failed === 0) {
+        showToast(`Видалено ${result.deleted} заявок`, 'success');
+      } else {
+        showToast(
+          `Видалено ${result.deleted} з ${result.total}. Не вдалося: ${result.failed}`,
+          'error'
+        );
+      }
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : 'Не вдалося очистити заявки',
+        'error'
+      );
+    } finally {
+      setDeletingAll(false);
+    }
+  };
+
   return (
     <>
       <PageHeader
         pageTitle="Заявки"
         pageSubtitle={`${filtered.length} з ${applications.length} заявок`}
         actions={
-          <button
-            onClick={() =>
-              setShowNewModal(true)
-            }
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-          >
-            <Plus size={16} />
-            Нова заявка
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleDeleteAllApplications}
+              disabled={deletingAll || applications.length === 0}
+              className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-300 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+              title="Видалити всі заявки з RVP Control і Telegram"
+            >
+              {deletingAll ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <Trash2 size={16} />
+              )}
+              <span className="hidden sm:inline">Очистити всі</span>
+            </button>
+
+            <button
+              onClick={() => setShowNewModal(true)}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            >
+              <Plus size={16} />
+              Нова заявка
+            </button>
+          </div>
         }
       >
         <div className="bg-[#141720] border border-white/5 rounded-2xl p-3 sm:p-4 mb-4 sm:mb-5 space-y-3">

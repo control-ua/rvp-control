@@ -52,8 +52,18 @@ export type DashboardNavigateTarget =
   | 'problems'
   | 'object-map';
 
+type ApplicationDashboardFilter =
+  | 'all'
+  | 'new'
+  | 'accepted'
+  | 'work'
+  | 'done'
+  | 'overdue'
+  | 'today'
+  | 'tomorrow';
+
 type Props = {
-  onNavigate: (page: DashboardNavigateTarget) => void;
+  onNavigate: (page: DashboardNavigateTarget, filter?: ApplicationDashboardFilter) => void;
 };
 
 type Accent =
@@ -792,7 +802,8 @@ export default function Dashboard({
               barClass="bg-blue-500"
               onClick={() =>
                 onNavigate(
-                  'applications'
+                  'applications',
+                  'new'
                 )
               }
             />
@@ -806,7 +817,8 @@ export default function Dashboard({
               barClass="bg-violet-500"
               onClick={() =>
                 onNavigate(
-                  'applications'
+                  'applications',
+                  'accepted'
                 )
               }
             />
@@ -820,7 +832,8 @@ export default function Dashboard({
               barClass="bg-amber-500"
               onClick={() =>
                 onNavigate(
-                  'applications'
+                  'applications',
+                  'work'
                 )
               }
             />
@@ -834,7 +847,8 @@ export default function Dashboard({
               barClass="bg-emerald-500"
               onClick={() =>
                 onNavigate(
-                  'applications'
+                  'applications',
+                  'done'
                 )
               }
             />

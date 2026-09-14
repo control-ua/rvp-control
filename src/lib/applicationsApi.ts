@@ -93,7 +93,7 @@ function mapRowToApplication(row: ApplicationRow): Application {
     contractorName,
     contractorPhone,
     phone: contractorPhone,
-    status: row.status === 'assigned' ? 'Нова' : normalizeStatus(row.status),
+    status: normalizeStatus(row.status),
     amount: Number(row.payout_amount ?? 0),
     scheduledDate: row.scheduled_at ?? '',
     description: row.description ?? '',

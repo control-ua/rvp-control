@@ -72,6 +72,7 @@ import {
 
 const STATUSES: ApplicationStatus[] = [
   'Нова',
+  'Прийнята',
   'В роботі',
   'Виконана',
   'Скасована',
@@ -126,7 +127,7 @@ function overdueDurationText(deadlineValue?: string) {
 
 function displayApplicationStatus(app: Application) {
   if (isApplicationOverdue(app)) return 'Прострочена';
-  return app.status === 'Прийнята' ? 'Нова' : app.status;
+  return app.status;
 }
 
 function applicationStatusColor(app: Application) {
@@ -185,12 +186,12 @@ function ApplicationModal({
 
   const [visibleStatus, setVisibleStatus] =
     useState<ApplicationStatus>(
-      app.status === 'Прийнята' ? 'Нова' : app.status
+      app.status
     );
 
   useEffect(() => {
     setVisibleStatus(
-      app.status === 'Прийнята' ? 'Нова' : app.status
+      app.status
     );
   }, [app.status, app.id]);
 
@@ -985,7 +986,25 @@ function ApplicationModal({
   );
 }
 
-export default function Applications() {
+type ApplicationDashboardFilter =
+  | 'all'
+  | 'new'
+  | 'accepted'
+  | 'work'
+  | 'done'
+  | 'overdue'
+  | 'today'
+  | 'tomorrow';
+
+type ApplicationsProps = {
+  dashboardFilter?: ApplicationDashboardFilter;
+  onDashboardFilterChange?: (filter: ApplicationDashboardFilter) => void;
+};
+
+export default function Applications({
+  dashboardFilter = 'all',
+  onDashboardFilterChange,
+}: ApplicationsProps) {
   const { showToast } = useApp();
 
   const [applications, setApplications] =
@@ -1023,21 +1042,9 @@ export default function Applications() {
   const [dateTo, setDateTo] =
     useState('');
 
-  const [dashboardFilter, setDashboardFilter] =
-    useState<'all' | 'overdue' | 'today' | 'tomorrow'>(() => {
-      const saved = sessionStorage.getItem('rvp-applications-dashboard-filter');
-      sessionStorage.removeItem('rvp-applications-dashboard-filter');
-
-      if (
-        saved === 'overdue' ||
-        saved === 'today' ||
-        saved === 'tomorrow'
-      ) {
-        return saved;
-      }
-
-      return 'all';
-    });
+  const setDashboardFilter = (filter: ApplicationDashboardFilter) => {
+    onDashboardFilterChange?.(filter);
+  };
 
   const [selected, setSelected] =
     useState<Application | null>(null);
@@ -1226,52 +1233,40 @@ export default function Applications() {
         }
 
         if (dashboardFilter !== 'all') {
-          if (!app.deadline) return false;
+          const statusByDashboardFilter: Partial<Record<ApplicationDashboardFilter, ApplicationStatus>> = {
+            new: 'Нова',
+            accepted: 'Прийнята',
+            work: 'В роботі',
+            done: 'Виконана',
+          };
 
-          const deadline = new Date(app.deadline);
-          if (Number.isNaN(deadline.getTime())) return false;
-
-          const now = new Date();
-          const startToday = new Date(now);
-          startToday.setHours(0, 0, 0, 0);
-
-          const startTomorrow = new Date(startToday);
-          startTomorrow.setDate(startTomorrow.getDate() + 1);
-
-          const startAfterTomorrow = new Date(startTomorrow);
-          startAfterTomorrow.setDate(startAfterTomorrow.getDate() + 1);
-
-          const isDone =
-            app.status === 'Виконана' ||
-            app.status === 'Скасована';
-
-          if (isDone) return false;
-
-          if (
-            dashboardFilter === 'overdue' &&
-            !(deadline < now)
-          ) {
+          const requiredStatus = statusByDashboardFilter[dashboardFilter];
+          if (requiredStatus && app.status !== requiredStatus) {
             return false;
           }
 
-          if (
-            dashboardFilter === 'today' &&
-            !(
-              deadline >= startToday &&
-              deadline < startTomorrow
-            )
-          ) {
-            return false;
-          }
+          if (dashboardFilter === 'overdue' || dashboardFilter === 'today' || dashboardFilter === 'tomorrow') {
+            if (!app.deadline) return false;
 
-          if (
-            dashboardFilter === 'tomorrow' &&
-            !(
-              deadline >= startTomorrow &&
-              deadline < startAfterTomorrow
-            )
-          ) {
-            return false;
+            const deadline = new Date(app.deadline);
+            if (Number.isNaN(deadline.getTime())) return false;
+
+            const now = new Date();
+            const startToday = new Date(now);
+            startToday.setHours(0, 0, 0, 0);
+
+            const startTomorrow = new Date(startToday);
+            startTomorrow.setDate(startTomorrow.getDate() + 1);
+
+            const startAfterTomorrow = new Date(startTomorrow);
+            startAfterTomorrow.setDate(startAfterTomorrow.getDate() + 1);
+
+            const isDone = app.status === 'Виконана' || app.status === 'Скасована';
+            if (isDone) return false;
+
+            if (dashboardFilter === 'overdue' && !(deadline < now)) return false;
+            if (dashboardFilter === 'today' && !(deadline >= startToday && deadline < startTomorrow)) return false;
+            if (dashboardFilter === 'tomorrow' && !(deadline >= startTomorrow && deadline < startAfterTomorrow)) return false;
           }
         }
 
@@ -1438,7 +1433,15 @@ export default function Applications() {
                   Фільтр з головної
                 </p>
                 <p className="truncate text-sm font-medium text-blue-300">
-                  {dashboardFilter === 'overdue'
+                  {dashboardFilter === 'new'
+                    ? 'Нова'
+                    : dashboardFilter === 'accepted'
+                    ? 'Прийнята'
+                    : dashboardFilter === 'work'
+                    ? 'В роботі'
+                    : dashboardFilter === 'done'
+                    ? 'Виконана'
+                    : dashboardFilter === 'overdue'
                     ? 'Прострочені'
                     : dashboardFilter === 'today'
                     ? 'Дедлайн сьогодні'

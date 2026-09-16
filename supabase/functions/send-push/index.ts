@@ -25,7 +25,7 @@ const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const vapidPublicKey = Deno.env.get("VAPID_PUBLIC_KEY") ?? "";
 const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY") ?? "";
 const vapidSubject = Deno.env.get("VAPID_SUBJECT") ?? "mailto:admin@rvp-control.app";
-const webhookSecret = Deno.env.get("PUSH_WEBHOOK_SECRET") ?? "";
+const webhookSecret = Deno.env.get("PUSH_INTERNAL_SECRET") ?? Deno.env.get("PUSH_WEBHOOK_SECRET") ?? "";
 
 if (vapidPublicKey && vapidPrivateKey) {
   webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
@@ -68,8 +68,6 @@ Deno.serve(async (req: Request) => {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  // Verify the application still exists. This also prevents arbitrary push text
-  // from being injected by callers that know only the webhook endpoint.
   const { data: row, error: applicationError } = await supabase
     .from("applications")
     .select("id, application_number, title, address, created_at")
@@ -86,7 +84,6 @@ Deno.serve(async (req: Request) => {
 
   const eventKey = body.event_key || `application-insert:${row.id}`;
 
-  // Claim this event before sending so webhook retries do not create duplicates.
   const { error: logError } = await supabase
     .from("push_delivery_log")
     .insert({ event_key: eventKey, application_id: row.id });

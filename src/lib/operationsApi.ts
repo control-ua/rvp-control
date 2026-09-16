@@ -78,7 +78,7 @@ export async function markApplicationWaitingForAct(
     .from('applications')
     .update({
       status: 'in_progress',
-      contractor_stage: 'waiting_act',
+      awaiting_act: true,
       updated_at: now,
     })
     .eq('id', applicationId);
@@ -133,6 +133,7 @@ export async function cancelApplication(applicationId: string): Promise<void> {
     .update({
       status: 'cancelled',
       contractor_stage: 'cancelled',
+      awaiting_act: false,
       updated_at: now,
     })
     .eq('id', applicationId);
@@ -159,6 +160,7 @@ export async function reopenApplication(applicationId: string): Promise<void> {
     .update({
       status: hasContractor ? 'assigned' : 'new',
       contractor_stage: hasContractor ? 'accepted' : 'unassigned',
+      awaiting_act: false,
       updated_at: new Date().toISOString(),
     })
     .eq('id', applicationId);
@@ -171,7 +173,7 @@ export async function reopenApplication(applicationId: string): Promise<void> {
 export async function fetchApplicationAttentionState(applicationId: string) {
   const { data, error } = await supabase
     .from('applications')
-    .select('has_problem, problem_comment, contractor_stage, status, deadline_at')
+    .select('has_problem, problem_comment, contractor_stage, status, deadline_at, awaiting_act')
     .eq('id', applicationId)
     .maybeSingle();
 
@@ -185,5 +187,6 @@ export async function fetchApplicationAttentionState(applicationId: string) {
     contractorStage: data?.contractor_stage ?? '',
     rawStatus: data?.status ?? '',
     deadlineAt: data?.deadline_at ?? null,
+    awaitingAct: Boolean(data?.awaiting_act),
   };
 }

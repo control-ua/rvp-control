@@ -8,6 +8,7 @@ import Sidebar from '@/components/Sidebar';
 import GlobalSearchOverlay from '@/components/GlobalSearchOverlay';
 import MobileNav from '@/components/MobileNav';
 
+import Today from '@/pages/Today';
 import Dashboard from '@/pages/Dashboard';
 import Applications from '@/pages/Applications';
 import Contractors from '@/pages/Contractors';
@@ -49,9 +50,13 @@ type NewApplicationNotification = {
 };
 
 function App() {
+  const initialParams = new URLSearchParams(window.location.search);
+  const initialApplicationId = initialParams.get('application');
+
   const [session, setSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState<PageId>('dashboard');
+  const [currentPage, setCurrentPage] = useState<PageId>(initialApplicationId ? 'today' : 'today');
+  const [openApplicationId, setOpenApplicationId] = useState<string | null>(initialApplicationId);
   const [searchOpen, setSearchOpen] = useState(false);
   const [applicationFilter, setApplicationFilter] = useState<ApplicationDashboardFilter>('all');
   const [newApplication, setNewApplication] = useState<NewApplicationNotification | null>(null);
@@ -74,18 +79,39 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  const openApplicationCenter = (applicationId: string) => {
+    const id = String(applicationId || '').trim();
+    if (!id) return;
+
+    const params = new URLSearchParams(window.location.search);
+    params.set('page', 'applications');
+    params.set('application', id);
+    window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
+
+    setOpenApplicationId(id);
+    setCurrentPage('today');
+    setApplicationFilter('all');
+    setUnreadApplications(0);
+  };
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('page') === 'applications') {
+    const applicationId = params.get('application');
+    const requestedPage = params.get('page');
+
+    if (applicationId) {
+      setOpenApplicationId(applicationId);
+      setCurrentPage('today');
+    } else if (requestedPage === 'applications') {
       setCurrentPage('applications');
       setApplicationFilter('all');
     }
 
     const onServiceWorkerMessage = (event: MessageEvent) => {
       if (event.data?.type === 'RVP_PUSH_OPEN') {
-        setCurrentPage('applications');
-        setApplicationFilter('all');
-        setUnreadApplications(0);
+        const id = String(event.data?.application_id || '').trim();
+        if (id) openApplicationCenter(id);
+        else setCurrentPage('notifications');
       }
     };
 
@@ -136,8 +162,7 @@ function App() {
       });
       notification.onclick = () => {
         window.focus();
-        setApplicationFilter('all');
-        setCurrentPage('applications');
+        openApplicationCenter(application.id);
         notification.close();
       };
     } catch (error) {
@@ -268,17 +293,20 @@ function App() {
       setApplicationFilter(filter);
       setUnreadApplications(0);
     }
+    if (page !== 'today') setOpenApplicationId(null);
     setCurrentPage(page);
     if (window.innerWidth < 1024) window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const openApplications = () => {
-    navigateTo('applications', 'all');
+  const openNewApplication = () => {
+    if (newApplication?.id) openApplicationCenter(newApplication.id);
+    else navigateTo('applications', 'all');
     setNewApplication(null);
   };
 
   const renderPage = () => {
     switch (currentPage) {
+      case 'today': return <Today key={openApplicationId || 'today'} onNavigateToApplications={() => navigateTo('applications')} />;
       case 'dashboard': return <Dashboard onNavigate={navigateTo} />;
       case 'applications': return <Applications dashboardFilter={applicationFilter} onDashboardFilterChange={setApplicationFilter} />;
       case 'contractors': return <Contractors />;
@@ -297,7 +325,7 @@ function App() {
       case 'finance': return <Finance onNavigateToPayouts={() => navigateTo('payouts')} />;
       case 'automation': return <AutomationRules />;
       case 'archive': return <Archive onNavigateToApplications={() => navigateTo('applications')} />;
-      default: return <Dashboard onNavigate={navigateTo} />;
+      default: return <Today onNavigateToApplications={() => navigateTo('applications')} />;
     }
   };
 
@@ -373,7 +401,7 @@ function App() {
                 </div>
                 <button onClick={() => setNewApplication(null)} className="shrink-0 rounded-lg p-1.5 text-slate-500 hover:bg-white/5 hover:text-white">✕</button>
               </div>
-              <button onClick={openApplications} className="mt-4 w-full rounded-xl bg-cyan-500 py-2.5 text-sm font-semibold text-[#061018] transition hover:bg-cyan-400">Відкрити заявки</button>
+              <button onClick={openNewApplication} className="mt-4 w-full rounded-xl bg-cyan-500 py-2.5 text-sm font-semibold text-[#061018] transition hover:bg-cyan-400">Відкрити центр дій</button>
             </div>
           </div>
         )}

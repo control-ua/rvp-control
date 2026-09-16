@@ -1,8 +1,8 @@
 import { supabase } from '@/lib/supabase';
 
-// Public VAPID key is safe to ship in the frontend.
+// Must match the VAPID public key configured in the Supabase push-notify Edge Function.
 const VAPID_PUBLIC_KEY =
-  'BMwbkNMow4Af0paF9-YGXKdDt_52apcCpzgi-hHOaUF9jkt6XzdLwHQb6Dtdjvfzt2tcE-Yfr1cnSTmh-fUK178';
+  'BJIa2lzWu01LFefW0rRYEghdFswW37M-uk1w8ykAOvaJEr9xRegtHhynFpsVz-FTFB8KEXzilW8JqIoUISncY2U';
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -20,40 +20,42 @@ function urlBase64ToUint8Array(base64String: string) {
   return outputArray;
 }
 
-export function isPushSupported() {
-  return (
-    'serviceWorker' in navigator &&
-    'PushManager' in window &&
-    'Notification' in window
-  );
+function subscriptionUsesCurrentVapidKey(subscription: PushSubscription) {
+  const currentKey = subscription.options?.applicationServerKey;
+  if (!currentKey) return false;
+
+  const actual = new Uint8Array(currentKey);
+  const expected = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+
+  if (actual.length !== expected.length) return false;
+
+  for (let i = 0; i < actual.length; i += 1) {
+    if (actual[i] !== expected[i]) return false;
+  }
+
+  return true;
 }
 
-export async function getPushSubscription() {
-  if (!isPushSupported()) return null;
-  const registration = await navigator.serviceWorker.ready;
-  return registration.pushManager.getSubscription();
+async function removeStoredSubscription(subscription: PushSubscription) {
+  const endpoint = subscription.endpoint;
+
+  try {
+    await subscription.unsubscribe();
+  } catch {
+    // Ignore browser cleanup errors and still remove the old row from Supabase.
+  }
+
+  try {
+    await supabase
+      .from('push_subscriptions')
+      .delete()
+      .eq('endpoint', endpoint);
+  } catch {
+    // A failed cleanup must not block creating a fresh subscription later.
+  }
 }
 
-export async function enablePushNotifications() {
-  if (!isPushSupported()) {
-    throw new Error('Push-сповіщення не підтримуються на цьому пристрої.');
-  }
-
-  const permission = await Notification.requestPermission();
-  if (permission !== 'granted') {
-    throw new Error('Дозвіл на сповіщення не надано.');
-  }
-
-  const registration = await navigator.serviceWorker.ready;
-  let subscription = await registration.pushManager.getSubscription();
-
-  if (!subscription) {
-    subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-    });
-  }
-
+async function saveSubscription(subscription: PushSubscription) {
   const json = subscription.toJSON();
   const { data: userData, error: userError } = await supabase.auth.getUser();
 
@@ -84,6 +86,55 @@ export async function enablePushNotifications() {
     );
 
   if (error) throw error;
+}
+
+export function isPushSupported() {
+  return (
+    'serviceWorker' in navigator &&
+    'PushManager' in window &&
+    'Notification' in window
+  );
+}
+
+export async function getPushSubscription() {
+  if (!isPushSupported()) return null;
+
+  const registration = await navigator.serviceWorker.ready;
+  const subscription = await registration.pushManager.getSubscription();
+
+  if (!subscription) return null;
+
+  // Apple binds a subscription to the VAPID public key. If the app key changed,
+  // the old subscription can never be used and Apple returns VapidPkHashMismatch.
+  if (!subscriptionUsesCurrentVapidKey(subscription)) {
+    await removeStoredSubscription(subscription);
+    return null;
+  }
+
+  return subscription;
+}
+
+export async function enablePushNotifications() {
+  if (!isPushSupported()) {
+    throw new Error('Push-сповіщення не підтримуються на цьому пристрої.');
+  }
+
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') {
+    throw new Error('Дозвіл на сповіщення не надано.');
+  }
+
+  const registration = await navigator.serviceWorker.ready;
+  let subscription = await getPushSubscription();
+
+  if (!subscription) {
+    subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+    });
+  }
+
+  await saveSubscription(subscription);
   return subscription;
 }
 
@@ -94,11 +145,5 @@ export async function disablePushNotifications() {
   const subscription = await registration.pushManager.getSubscription();
   if (!subscription) return;
 
-  const endpoint = subscription.endpoint;
-  await subscription.unsubscribe();
-
-  await supabase
-    .from('push_subscriptions')
-    .delete()
-    .eq('endpoint', endpoint);
+  await removeStoredSubscription(subscription);
 }

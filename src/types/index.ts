@@ -8,7 +8,6 @@ export type ApplicationStatus =
 export type PayoutStatus = 'Очікує' | 'Виплачено';
 export type ContractorStatus = 'Активний' | 'Неактивний';
 export type AdminRole = 'owner' | 'admin' | 'dispatcher' | 'accountant' | 'viewer';
-
 export type Region = 'Київ' | 'Дніпро';
 
 export interface Contractor {
@@ -104,4 +103,92 @@ export interface AutomationRule {
   description: string;
   enabled: boolean;
   triggerCount: number;
+}
+
+export interface ActivityFeedItem {
+  id: string;
+  type:
+    | 'problem'
+    | 'payout_paid'
+    | 'payout_created'
+    | 'application_completed'
+    | 'contractor_departed'
+    | 'work_started'
+    | 'contractor_assigned'
+    | 'application_created';
+  title: string;
+  description: string;
+  applicationNumber: string;
+  contractorName: string;
+  createdAt: string;
+  severity: 'info' | 'warning' | 'critical';
+}
+
+export interface SearchResult {
+  id: string;
+  type: 'application' | 'contractor' | 'act';
+  title: string;
+  subtitle: string;
+  number: string;
+}
+
+export interface CalendarEvent {
+  id: string;
+  applicationId: string;
+  number: string;
+  title: string;
+  status: ApplicationStatus;
+  date: string;
+  deadline: boolean;
+}
+
+export interface ControlCenterItem {
+  id: string;
+  type:
+    | 'overdue'
+    | 'deadline_today'
+    | 'no_contractor'
+    | 'problem'
+    | 'act_pending'
+    | 'payout_pending';
+  title: string;
+  description: string;
+  applicationId: string;
+  applicationNumber: string;
+  severity: 'critical' | 'warning' | 'info';
+  createdAt: string;
+}
+
+export interface FinanceStats {
+  accruedToday: number;
+  accruedThisMonth: number;
+  paidThisMonth: number;
+  pendingPayout: number;
+  totalDebt: number;
+}
+
+export interface FinanceDailyPoint {
+  date: string;
+  amount: number;
+}
+
+export interface FinanceTopContractor {
+  id: string;
+  name: string;
+  totalPayout: number;
+  payoutCount: number;
+}
+
+export interface ContractorRatingItem {
+  id: string;
+  name: string;
+  phone: string | null;
+  activeApplications: number;
+  totalApplications: number;
+  completedApplications: number;
+  problemApplications: number;
+  completionRate: number;
+  totalPayout: number;
+  avgCompletionHours: number | null;
+  rank: number;
 }

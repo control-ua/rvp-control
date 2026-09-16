@@ -1,6 +1,7 @@
 import type { AdminRole } from '@/types';
 
 export type PageId =
+  | 'today'
   | 'dashboard'
   | 'applications'
   | 'contractors'
@@ -21,25 +22,25 @@ export type PageId =
   | 'archive';
 
 const FULL_ACCESS: PageId[] = [
-  'dashboard', 'applications', 'contractors', 'acts', 'payouts', 'statistics',
+  'today', 'dashboard', 'applications', 'contractors', 'acts', 'payouts', 'statistics',
   'administrators', 'audit-log', 'notifications', 'settings', 'problems',
   'object-map', 'control-center', 'contractor-rating', 'calendar', 'finance',
   'automation', 'archive',
 ];
 
 const DISPATCHER_ACCESS: PageId[] = [
-  'dashboard', 'applications', 'contractors', 'acts', 'problems',
+  'today', 'dashboard', 'applications', 'contractors', 'acts', 'problems',
   'object-map', 'control-center', 'contractor-rating', 'calendar', 'archive',
   'notifications', 'settings',
 ];
 
 const ACCOUNTANT_ACCESS: PageId[] = [
-  'dashboard', 'payouts', 'finance', 'statistics', 'applications',
+  'today', 'dashboard', 'payouts', 'finance', 'statistics', 'applications',
   'acts', 'audit-log', 'notifications', 'settings', 'archive',
 ];
 
 const VIEWER_ACCESS: PageId[] = [
-  'dashboard', 'applications', 'contractors', 'acts', 'payouts',
+  'today', 'dashboard', 'applications', 'contractors', 'acts', 'payouts',
   'statistics', 'problems', 'object-map', 'control-center',
   'contractor-rating', 'calendar', 'archive', 'notifications', 'settings',
 ];

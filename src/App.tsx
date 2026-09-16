@@ -75,6 +75,25 @@ function App() {
   }, []);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('page') === 'applications') {
+      setCurrentPage('applications');
+      setApplicationFilter('all');
+    }
+
+    const onServiceWorkerMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'RVP_PUSH_OPEN') {
+        setCurrentPage('applications');
+        setApplicationFilter('all');
+        setUnreadApplications(0);
+      }
+    };
+
+    navigator.serviceWorker?.addEventListener('message', onServiceWorkerMessage);
+    return () => navigator.serviceWorker?.removeEventListener('message', onServiceWorkerMessage);
+  }, []);
+
+  useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
@@ -156,7 +175,6 @@ function App() {
       );
     };
 
-    // Remember the latest existing application so old rows don't trigger after login.
     supabase
       .from('applications')
       .select('id')
@@ -176,7 +194,6 @@ function App() {
       )
       .subscribe();
 
-    // iPhone/PWA fallback: check the newest row every 15 seconds.
     const interval = window.setInterval(async () => {
       if (document.visibilityState !== 'visible') return;
 

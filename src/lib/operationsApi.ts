@@ -70,6 +70,24 @@ export async function updateApplicationDeadline(
   }
 }
 
+export async function markApplicationWaitingForAct(
+  applicationId: string,
+): Promise<void> {
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from('applications')
+    .update({
+      status: 'in_progress',
+      contractor_stage: 'waiting_act',
+      updated_at: now,
+    })
+    .eq('id', applicationId);
+
+  if (error) {
+    throw new Error(`Не вдалося перевести заявку в «Чекаємо акт»: ${error.message}`);
+  }
+}
+
 export async function reportApplicationProblem(
   applicationId: string,
   comment: string,

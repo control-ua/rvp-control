@@ -22,12 +22,12 @@ export default function PageHeader({
   const resolvedActions = actions ?? action;
 
   const header = (
-    <header className="sticky top-0 z-10 flex items-center justify-between border-b border-white/5 bg-[#0d0f14]/90 px-4 py-4 backdrop-blur sm:px-6">
-      <div>
+    <header className="rvp-page-header sticky top-0 z-10 flex items-center justify-between border-b border-white/5 bg-[#0d0f14]/90 px-4 py-4 backdrop-blur sm:px-6">
+      <div className="rvp-page-header-copy">
         <h1 className="text-xl font-semibold text-white">{resolvedTitle}</h1>
         {resolvedSubtitle && <p className="mt-0.5 text-sm text-slate-400">{resolvedSubtitle}</p>}
       </div>
-      {resolvedActions && <div className="flex items-center gap-3">{resolvedActions}</div>}
+      {resolvedActions && <div className="rvp-page-header-actions flex items-center gap-3">{resolvedActions}</div>}
     </header>
   );
 

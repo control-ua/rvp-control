@@ -6,8 +6,10 @@ export type ApplicationStatus =
   | 'Скасована';
 
 export type PayoutStatus = 'Очікує' | 'Виплачено';
-
 export type ContractorStatus = 'Активний' | 'Неактивний';
+export type AdminRole = 'owner' | 'admin' | 'dispatcher' | 'accountant' | 'viewer';
+
+export type Region = 'Київ' | 'Дніпро';
 
 export interface Contractor {
   id: string;
@@ -21,8 +23,6 @@ export interface Contractor {
   totalPayout: number;
   avatar?: string;
 }
-
-export type Region = 'Київ' | 'Дніпро';
 
 export interface Application {
   id: string;
@@ -73,4 +73,35 @@ export interface Payout {
   status: PayoutStatus;
   paymentDate?: string;
   receipt?: string;
+}
+
+export interface ApplicationComment {
+  id: string;
+  applicationId: string;
+  adminUserId: string;
+  adminName: string;
+  message: string;
+  createdAt: string;
+}
+
+export interface ApplicationFile {
+  id: string;
+  applicationId: string;
+  fileName: string;
+  fileType: string;
+  storagePath: string | null;
+  telegramFileId: string | null;
+  category: 'before' | 'after' | 'document' | 'other';
+  uploadedBy: string | null;
+  createdAt: string;
+  url: string | null;
+}
+
+export interface AutomationRule {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  triggerCount: number;
 }

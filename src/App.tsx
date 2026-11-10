@@ -12,6 +12,7 @@ import Today from '@/pages/Today';
 import Dashboard from '@/pages/Dashboard';
 import Applications from '@/pages/Applications';
 import Contractors from '@/pages/Contractors';
+import Customers from '@/portal/Customers';
 import Acts from '@/pages/Acts';
 import Payouts from '@/pages/Payouts';
 import Statistics from '@/pages/Statistics';
@@ -310,6 +311,7 @@ function App() {
       case 'dashboard': return <Dashboard onNavigate={navigateTo} />;
       case 'applications': return <Applications dashboardFilter={applicationFilter} onDashboardFilterChange={setApplicationFilter} />;
       case 'contractors': return <Contractors />;
+      case 'customers': return <Customers />;
       case 'acts': return <Acts />;
       case 'payouts': return <Payouts />;
       case 'statistics': return <Statistics />;

@@ -1,2 +1,10 @@
 [functions.send-push]
 verify_jwt = false
+
+[functions.rpv-portal]
+# The handler validates Telegram HMAC or the office Supabase Auth session.
+verify_jwt = false
+
+[functions.smart-api]
+# Telegram webhook signature and existing web action authentication are checked in code.
+verify_jwt = false

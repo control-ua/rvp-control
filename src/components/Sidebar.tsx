@@ -37,6 +37,7 @@ const navItems: {
   { id: 'dashboard', label: 'Головна', icon: LayoutDashboard },
   { id: 'applications', label: 'Заявки', icon: FileText },
   { id: 'contractors', label: 'Підрядники', icon: Users },
+  { id: 'customers', label: 'Замовники', icon: Users },
   { id: 'acts', label: 'Акти', icon: ClipboardList },
   { id: 'problems', label: 'Проблемні заявки', icon: TriangleAlert },
   { id: 'object-map', label: 'Карта обʼєктів', icon: MapPinned },

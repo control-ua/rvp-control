@@ -5,6 +5,7 @@ export type PageId =
   | 'dashboard'
   | 'applications'
   | 'contractors'
+  | 'customers'
   | 'acts'
   | 'payouts'
   | 'statistics'
@@ -22,14 +23,14 @@ export type PageId =
   | 'archive';
 
 const FULL_ACCESS: PageId[] = [
-  'today', 'dashboard', 'applications', 'contractors', 'acts', 'payouts', 'statistics',
+  'today', 'dashboard', 'applications', 'contractors', 'customers', 'acts', 'payouts', 'statistics',
   'administrators', 'audit-log', 'notifications', 'settings', 'problems',
   'object-map', 'control-center', 'contractor-rating', 'calendar', 'finance',
   'automation', 'archive',
 ];
 
 const DISPATCHER_ACCESS: PageId[] = [
-  'today', 'dashboard', 'applications', 'contractors', 'acts', 'problems',
+  'today', 'dashboard', 'applications', 'contractors', 'customers', 'acts', 'problems',
   'object-map', 'control-center', 'contractor-rating', 'calendar', 'archive',
   'notifications', 'settings',
 ];
@@ -40,7 +41,7 @@ const ACCOUNTANT_ACCESS: PageId[] = [
 ];
 
 const VIEWER_ACCESS: PageId[] = [
-  'today', 'dashboard', 'applications', 'contractors', 'acts', 'payouts',
+  'today', 'dashboard', 'applications', 'contractors', 'customers', 'acts', 'payouts',
   'statistics', 'problems', 'object-map', 'control-center',
   'contractor-rating', 'calendar', 'archive', 'notifications', 'settings',
 ];
@@ -53,7 +54,7 @@ export function getAllowedPages(role: AdminRole | null): PageId[] {
     case 'dispatcher': return DISPATCHER_ACCESS;
     case 'accountant': return ACCOUNTANT_ACCESS;
     case 'viewer': return VIEWER_ACCESS;
-    default: return FULL_ACCESS;
+    default: return [];
   }
 }
 

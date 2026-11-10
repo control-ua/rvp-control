@@ -1,0 +1,24 @@
+name: Portal checks
+on:
+  pull_request:
+  push:
+    branches: ['codex/rpv-portal-*']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run test:portal
+      - run: npm run typecheck
+      - run: npm run build
+        env:
+          VITE_SUPABASE_URL: https://example.supabase.co
+          VITE_SUPABASE_ANON_KEY: ci-public-placeholder
+      - run: npx --yes deno@2.9.6 check supabase/functions/rpv-portal/index.ts

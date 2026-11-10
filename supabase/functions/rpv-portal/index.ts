@@ -286,6 +286,46 @@ async function dispatch(req: Request, b: any): Promise<any> {
       name: cRow?.first_name || kRow?.first_name || "",
     };
   }
+  if (b.action === "customer.create") {
+    await customer(user);
+    const work = typeof b.work === "string" ? b.work.trim() : "";
+    const date = typeof b.date === "string" ? b.date : "";
+    if (!work || work.length > 2000 || !/^\d{4}-\d{2}-\d{2}$/.test(date))
+      throw new PortalError(400, "Вкажіть роботи та бажану дату.");
+    const { data, error } = await db.rpc("rpv_customer_create_application", {
+      p_user: user,
+      p_site: uuid(b.site),
+      p_request: uuid(b.request),
+      p_work: work,
+      p_date: date,
+    });
+    if (error) {
+      if (error.code === "42501")
+        throw new PortalError(
+          403,
+          "Доступ до цієї АЗК відсутній. Оновіть кабінет.",
+        );
+      if (error.code === "22023")
+        throw new PortalError(
+          400,
+          "Перевірте роботи та дату: від сьогодні до року вперед.",
+        );
+      if (error.code === "23505")
+        throw new PortalError(
+          409,
+          "Цю спробу вже використано з іншими даними. Відкрийте нову форму.",
+        );
+      if (error.code === "54000")
+        throw new PortalError(429, "Забагато нових заявок. Зачекайте хвилину.");
+      throw new PortalError(
+        500,
+        "Не вдалося підтвердити створення. Повторіть надсилання — дубль не буде створено.",
+      );
+    }
+    if (!data?.[0])
+      throw new PortalError(500, "Не вдалося підтвердити створення заявки.");
+    return data[0];
+  }
   if (b.action === "customer.dashboard") {
     const profile = await customer(user);
     const range = monthRange(b.month);

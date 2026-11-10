@@ -40,13 +40,56 @@ window.Telegram = {
     openTelegramLink() {},
   },
 };
+const createdApps: (typeof app)[] = [];
 const fetchReal = window.fetch.bind(window);
 window.fetch = async (input, init) => {
   if (!String(input).endsWith("/rpv-portal")) return fetchReal(input, init);
   const b = JSON.parse(String(init?.body));
-  if(b.action.startsWith('office.')) {
-    const customers=[{telegram_id:123,first_name:'Тестовий менеджер',last_name:'АЗК',username:'example_test',phone:'+380000000000',status:b.status,updated_at:'2026-11-10T00:00:00Z'}];
-    return new Response(JSON.stringify(b.action==='office.list'?{customers,more:false,canManage:true}:b.action==='office.sites'?{sites:[site],more:false}:b.action==='office.applications'?{applications:[{...app,customer_site_id:null}],more:false}:{ok:true,notificationSent:true,notifications:null}),{headers:{'Content-Type':'application/json'}});
+  if (b.action === "customer.create") {
+    const row = {
+      ...app,
+      id: b.request,
+      application_number: "G-WEB001",
+      description: b.work,
+      status: "new",
+      contractor_stage: "unassigned",
+    };
+    if (!createdApps.some((a) => a.id === row.id)) createdApps.unshift(row);
+    return new Response(
+      JSON.stringify({
+        id: row.id,
+        application_number: row.application_number,
+      }),
+      { headers: { "Content-Type": "application/json" } },
+    );
+  }
+  if (b.action.startsWith("office.")) {
+    const customers = [
+      {
+        telegram_id: 123,
+        first_name: "Тестовий менеджер",
+        last_name: "АЗК",
+        username: "example_test",
+        phone: "+380000000000",
+        status: b.status,
+        updated_at: "2026-11-10T00:00:00Z",
+      },
+    ];
+    return new Response(
+      JSON.stringify(
+        b.action === "office.list"
+          ? { customers, more: false, canManage: true }
+          : b.action === "office.sites"
+            ? { sites: [site], more: false }
+            : b.action === "office.applications"
+              ? {
+                  applications: [{ ...app, customer_site_id: null }],
+                  more: false,
+                }
+              : { ok: true, notificationSent: true, notifications: null },
+      ),
+      { headers: { "Content-Type": "application/json" } },
+    );
   }
   const data =
     b.action === "identity"
@@ -65,7 +108,10 @@ window.fetch = async (input, init) => {
           }
         : b.action === "contractor.dashboard" ||
             b.action === "customer.applications"
-          ? { applications: [app], more: false }
+          ? {
+              applications: createdApps.length ? createdApps : [app],
+              more: false,
+            }
           : b.action === "contractor.transition"
             ? ((app.contractor_stage =
                 b.transition === "accept" ? "accepted" : "departed"),
@@ -75,8 +121,13 @@ window.fetch = async (input, init) => {
     headers: { "Content-Type": "application/json" },
   });
 };
-if(new URLSearchParams(location.search).has('office')){
-  const [{createElement},{createRoot},{default:Customers}]=await Promise.all([import('react'),import('react-dom/client'),import('../src/portal/Customers')]);
-  await import('../src/index.css');
-  createRoot(document.getElementById('root')!).render(createElement(Customers));
-}else await import("../src/main");
+if (new URLSearchParams(location.search).has("office")) {
+  const [{ createElement }, { createRoot }, { default: Customers }] =
+    await Promise.all([
+      import("react"),
+      import("react-dom/client"),
+      import("../src/portal/Customers"),
+    ]);
+  await import("../src/index.css");
+  createRoot(document.getElementById("root")!).render(createElement(Customers));
+} else await import("../src/main");

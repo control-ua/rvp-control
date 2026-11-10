@@ -24,6 +24,7 @@ import {
   type Act,
 } from "./api";
 import "./portal.css";
+import CreateApplication from "./CreateApplication";
 export default function Portal() {
   const requested = new URLSearchParams(location.search).get("cabinet");
   const [role, setRole] = useState(
@@ -131,6 +132,9 @@ function CustomerPortal() {
     [orders, setOrders] = useState<Application[]>([]),
     [orderPage, setOrderPage] = useState(0),
     [ordersMore, setOrdersMore] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [created, setCreated] = useState("");
+  const [orderRevision, setOrderRevision] = useState(0);
   const refresh = () => {
     setBusy(true);
     setError("");
@@ -165,7 +169,7 @@ function CustomerPortal() {
       })
       .catch((e) => setError(e.message))
       .finally(() => setBusy(false));
-  }, [site?.id, tab, orderPage]);
+  }, [site?.id, tab, orderPage, orderRevision]);
   async function download(a: Act) {
     setBusy(true);
     setError("");
@@ -189,6 +193,40 @@ function CustomerPortal() {
           <RefreshCw size={17} /> Оновити
         </button>
       </div>
+      <div className="rpv-create-launch">
+        <button
+          className="primary"
+          disabled={!data?.sites.length && !site}
+          onClick={() => {
+            setCreated("");
+            setCreating(true);
+          }}
+        >
+          + Створити заявку
+        </button>
+        {created && (
+          <p role="status">
+            Заявку {created} створено. Офіс отримає її для опрацювання.
+          </p>
+        )}
+      </div>
+      {creating && (
+        <CreateApplication
+          sites={data?.sites || []}
+          selected={site}
+          sitesMore={!!data?.sitesMore}
+          onClose={() => setCreating(false)}
+          onDone={(chosen, number) => {
+            setCreating(false);
+            setCreated(number);
+            setSite(chosen);
+            setTab("orders");
+            setOrderPage(0);
+            setOrderRevision((v) => v + 1);
+            void refresh();
+          }}
+        />
+      )}
       {error && (
         <p className="rpv-error" role="alert">
           {error}

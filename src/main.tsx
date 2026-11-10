@@ -1,6 +1,8 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
+import PasswordRecovery from "./auth/PasswordRecovery";
+import { recoveryLink } from "./lib/supabase";
 import Portal from "./portal/Portal";
 const cabinet = new URLSearchParams(window.location.search).get("cabinet");
 const isPortal =
@@ -10,5 +12,13 @@ const isPortal =
 import "./index.css";
 
 createRoot(document.getElementById("root")!).render(
-  <StrictMode>{isPortal ? <Portal /> : <App />}</StrictMode>,
+  <StrictMode>
+    {recoveryLink.intended ? (
+      <PasswordRecovery />
+    ) : isPortal ? (
+      <Portal />
+    ) : (
+      <App />
+    )}
+  </StrictMode>,
 );

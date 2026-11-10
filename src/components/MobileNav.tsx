@@ -36,6 +36,7 @@ const mainItems = [
 ];
 
 const moreItems = [
+  { id: 'customers' as PageId, label: 'Замовники', icon: Users },
   { id: 'dashboard' as PageId, label: 'Головна', icon: LayoutDashboard },
   { id: 'acts' as PageId, label: 'Акти', icon: ClipboardCheck },
   { id: 'problems' as PageId, label: 'Проблеми', icon: TriangleAlert },

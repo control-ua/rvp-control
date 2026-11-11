@@ -112,14 +112,33 @@ export async function reportApplicationProblem(
 export async function resolveApplicationProblem(
   applicationId: string,
 ): Promise<void> {
+  const { data: current, error: readError } = await supabase
+    .from('applications')
+    .select('contractor_stage, departed_at, arrived_at, accepted_at, contractor_id, status, updated_at')
+    .eq('id', applicationId)
+    .single();
+  if (readError || !current) {
+    throw new Error(`Не вдалося перевірити проблему: ${readError?.message || 'Заявку не знайдено'}`);
+  }
+  const update: Record<string, unknown> = {
+    has_problem: false,
+    problem_comment: null,
+    updated_at: new Date().toISOString(),
+  };
+  // Older bot versions used the contractor stage as a second problem flag.
+  // Restore the last recorded work stage without changing the work status.
+  if (current.contractor_stage === 'problem') {
+    update.contractor_stage = current.status === 'completed' ? 'completed'
+      : current.status === 'cancelled' ? 'cancelled'
+      : !current.contractor_id ? 'unassigned'
+      : current.departed_at || current.arrived_at ? 'departed'
+      : current.accepted_at ? 'accepted' : 'offered';
+  }
   const { data, error } = await supabase
     .from('applications')
-    .update({
-      has_problem: false,
-      problem_comment: null,
-      updated_at: new Date().toISOString(),
-    })
+    .update(update)
     .eq('id', applicationId)
+    .eq('updated_at', current.updated_at)
     .select('id, has_problem')
     .single();
 
@@ -187,7 +206,7 @@ export async function fetchApplicationAttentionState(applicationId: string) {
   }
 
   return {
-    hasProblem: Boolean(data?.has_problem),
+    hasProblem: Boolean(data?.has_problem || data?.contractor_stage === 'problem'),
     problemComment: data?.problem_comment ?? '',
     contractorStage: data?.contractor_stage ?? '',
     rawStatus: data?.status ?? '',

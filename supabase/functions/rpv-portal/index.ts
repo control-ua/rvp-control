@@ -379,6 +379,20 @@ async function dispatch(req: Request, b: any): Promise<any> {
       monthsMore: months.length > 8,
     };
   }
+  if (b.action === "customer.calendar") {
+    await customer(user);
+    const month = typeof b.month === "string" ? b.month : "";
+    const query = typeof b.query === "string" ? b.query.trim() : "";
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || query.length > 40)
+      throw new PortalError(400, "Перевірте місяць та пошук АЗК.");
+    const { data, error } = await db.rpc("rpv_customer_calendar", {
+      p_user: user, p_month: month + "-01", p_site: b.site ? uuid(b.site) : null,
+      p_query: query, p_offset: page(b.page) * 200,
+    });
+    if (error?.code === "42501") throw new PortalError(403, "Доступ до АЗК відкликано. Оновіть кабінет.");
+    if (error?.code === "22023") throw new PortalError(400, "Оберіть місяць від 2020 року до двох років уперед.");
+    return result({ data, error });
+  }
   if (b.action === "customer.applications") {
     await customer(user);
     const s = uuid(b.site);

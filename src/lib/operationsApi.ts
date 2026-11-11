@@ -112,17 +112,22 @@ export async function reportApplicationProblem(
 export async function resolveApplicationProblem(
   applicationId: string,
 ): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('applications')
     .update({
       has_problem: false,
       problem_comment: null,
       updated_at: new Date().toISOString(),
     })
-    .eq('id', applicationId);
+    .eq('id', applicationId)
+    .select('id, has_problem')
+    .single();
 
   if (error) {
     throw new Error(`Не вдалося закрити проблему: ${error.message}`);
+  }
+  if (!data || data.has_problem !== false) {
+    throw new Error('Закриття проблеми не підтверджено. Оновіть заявку та спробуйте знову.');
   }
 }
 

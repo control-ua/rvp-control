@@ -121,13 +121,20 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
   const loadExtra = async () => {
     setLoading(true);
     try {
-      const [contractorRows, eventRows, historyRows, fileRows, commentRows, attention] = await Promise.all([
+      const [contractorRows, eventRows, historyRows, fileRows, commentRows] = await Promise.all([
         fetchContractors(),
         fetchApplicationEvents(application.id),
         fetchWorkHistory(application.id).catch(() => [] as WorkHistoryEntry[]),
         fetchApplicationFiles(application.id),
         fetchApplicationComments(application.id).catch(() => [] as any[]),
-        fetchApplicationAttentionState(application.id),
+        // Refresh the header independently of files, comments and timeline.
+        fetchApplicationAttentionState(application.id).then((attention) => {
+          setAwaitingAct(attention.awaitingAct);
+          setHasProblem(attention.hasProblem);
+          setProblemComment(attention.problemComment);
+          setDeadlineValue(toLocalInputValue(attention.deadlineAt));
+          return attention;
+        }),
       ]);
 
       setContractors(contractorRows);
@@ -142,10 +149,6 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
           createdAt: row.createdAt,
         })),
       );
-      setAwaitingAct(attention.awaitingAct);
-      setHasProblem(attention.hasProblem);
-      setProblemComment(attention.problemComment);
-      setDeadlineValue(toLocalInputValue(attention.deadlineAt));
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Не вдалося завантажити центр дій', 'error');
     } finally {
@@ -214,7 +217,11 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
 
   const handleProblem = () => {
     if (hasProblem) {
-      void runAction('problem', () => resolveApplicationProblem(application.id), 'Проблему закрито');
+      void runAction('problem', async () => {
+        await resolveApplicationProblem(application.id);
+        setHasProblem(false);
+        setProblemComment('');
+      }, 'Проблему закрито');
       return;
     }
     void runAction(
@@ -466,7 +473,7 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
                   disabled={busy !== null || (!hasProblem && !problemComment.trim())}
                   className={`mt-2 min-h-10 rounded-xl px-4 text-sm font-semibold disabled:opacity-40 ${hasProblem ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-300' : 'border border-rose-500/20 bg-rose-500/10 text-rose-300'}`}
                 >
-                  {busy === 'problem' ? 'Збереження…' : hasProblem ? '✓ Проблему вирішено' : 'Позначити проблему'}
+                  {busy === 'problem' ? 'Збереження…' : hasProblem ? 'Вирішити проблему' : 'Позначити проблему'}
                 </button>
               </section>
 

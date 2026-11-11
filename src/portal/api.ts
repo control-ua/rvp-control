@@ -26,6 +26,7 @@ export type Application = {
   address: string;
   status: string;
   contractor_stage: string;
+  scheduled_at: string | null;
   deadline_at: string | null;
   actual_volume: number | null;
   updated_at: string;

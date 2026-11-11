@@ -45,7 +45,7 @@ test("only confirmed roles receive Mini App buttons", async () => {
   assert.equal(rows.length, 1);
   assert.equal(
     rows[0][0].web_app.url,
-    "https://control-ua.github.io/rvp-control/?cabinet=customer",
+    "https://gidraservicedp-alt.github.io/rvp-control/?cabinet=customer",
   );
 });
 test("pending users and group messages do not get a private cabinet", async () => {
@@ -72,5 +72,5 @@ test("multiple active roles and office use separate server-checked entries", asy
   assert.ok(rows[0][0].web_app);
   assert.ok(rows[1][0].web_app);
   assert.equal(rows[2][0].web_app, undefined);
-  assert.equal(rows[2][0].url, "https://control-ua.github.io/rvp-control/");
+  assert.equal(rows[2][0].url, "https://gidraservicedp-alt.github.io/rvp-control/");
 });

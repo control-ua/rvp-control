@@ -10,7 +10,7 @@ const BOT = Deno.env.get("BOT_TOKEN")!;
 const db = createClient(URL, KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
-const origins = new Set(["https://control-ua.github.io"]);
+const origins = new Set(["https://gidraservicedp-alt.github.io"]);
 const sitesFields =
   "id,label,address,capacity_m3,passport_network,passport_city_code,passport_azk_code";
 const appFields =

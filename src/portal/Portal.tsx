@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Droplets,
   Building2,
@@ -26,6 +26,7 @@ import {
 import "./portal.css";
 import CreateApplication from "./CreateApplication";
 import CustomerCalendar from "./CustomerCalendar";
+import ServiceResult from "./ServiceResult";
 export default function Portal() {
   const requested = new URLSearchParams(location.search).get("cabinet");
   const [role, setRole] = useState(
@@ -137,7 +138,9 @@ function CustomerPortal() {
   const [created, setCreated] = useState("");
   const [createDate, setCreateDate] = useState<string>();
   const [orderRevision, setOrderRevision] = useState(0);
+  const dashboardRequest=useRef(0);
   const refresh = () => {
+    const request=++dashboardRequest.current;
     setBusy(true);
     setError("");
     return portal<Dashboard>("customer.dashboard", {
@@ -147,30 +150,29 @@ function CustomerPortal() {
       sitePage,
       archivePage,
     })
-      .then(setData)
-      .catch((e) => {
-        setError(e.message);
-        setData(null);
-      })
-      .finally(() => setBusy(false));
+      .then((r)=>{if(request===dashboardRequest.current){setData(r);setOrderRevision(v=>v+1);}})
+      .catch((e) => {if(request===dashboardRequest.current){setError(e.message);setData(null);setOrders([]);}})
+      .finally(() => {if(request===dashboardRequest.current)setBusy(false);});
   };
   useEffect(() => {
     void refresh();
   }, [month, site?.id, page, sitePage, archivePage]);
+  useEffect(()=>{const update=()=>{if(document.visibilityState==="visible")void refresh();};const timer=window.setInterval(update,15000);window.addEventListener("focus",update);return()=>{window.clearInterval(timer);window.removeEventListener("focus",update);};},[month,site?.id,page,sitePage,archivePage]);
   useEffect(() => {
     setOrders([]);
     if (!site || tab !== "orders") return;
+    let active=true;
     setBusy(true);
     portal<{ applications: Application[]; more: boolean }>(
       "customer.applications",
       { site: site.id, page: orderPage },
     )
       .then((r) => {
-        setOrders(r.applications);
-        setOrdersMore(r.more);
+        if(active){setOrders(r.applications);setOrdersMore(r.more);}
       })
-      .catch((e) => setError(e.message))
-      .finally(() => setBusy(false));
+      .catch((e) => {if(active){setError(e.message);setOrders([]);}})
+      .finally(() => {if(active)setBusy(false);});
+    return()=>{active=false;};
   }, [site?.id, tab, orderPage, orderRevision]);
   async function download(a: Act) {
     setBusy(true);
@@ -532,7 +534,7 @@ function ApplicationCard({
     <article className="rpv-job">
       <div className="rpv-job-top">
         <strong>{app.application_number}</strong>
-        <span>{statusLabel(app.status)}</span>
+        <span>{app.awaiting_act ? "Результат на перевірці" : app.has_problem ? "Потребує уваги" : app.arrived_at && app.status!=="completed" ? "На об’єкті" : statusLabel(app.status)}</span>
       </div>
       <h3>{app.title}</h3>
       <p>{app.address}</p>
@@ -555,12 +557,15 @@ function ContractorPortal() {
     [page, setPage] = useState(0),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const [resultApp,setResultApp]=useState<Application|null>(null);
+  const [view,setView]=useState("active");
+  const [sent,setSent]=useState(false);
   const refresh = () => {
     setBusy(true);
     setError("");
     return portal<{ applications: Application[]; more: boolean }>(
       "contractor.dashboard",
-      { page },
+      { page,view },
     )
       .then((r) => {
         setApps(r.applications);
@@ -574,19 +579,21 @@ function ContractorPortal() {
   };
   useEffect(() => {
     void refresh();
-  }, [page]);
+  }, [page,view]);
+  useEffect(()=>{if(resultApp)return;const update=()=>{if(document.visibilityState==="visible")void refresh();};const timer=window.setInterval(update,15000);window.addEventListener("focus",update);return()=>{window.clearInterval(timer);window.removeEventListener("focus",update);};},[page,view,resultApp]);
   async function transition(a: Application, t: string) {
-    if (
-      t === "decline" &&
-      !confirm(`Відмовитися від заявки ${a.application_number}?`)
-    )
-      return;
+    let note="";
+    if(t==="decline"||t==="problem") {
+      const value=window.prompt(t==="decline"?"Причина відмови (від 3 символів)":"Що сталося? (від 3 символів)");
+      if(value===null)return;note=value.trim();if(note.length<3||note.length>2000){setError("Вкажіть причину від 3 до 2000 символів.");return;}
+    }
     setBusy(true);
     setError("");
     try {
       await portal("contractor.transition", {
         application: a.id,
         transition: t,
+        note,
         version: a.updated_at,
       });
       await refresh();
@@ -613,13 +620,20 @@ function ContractorPortal() {
           {error}
         </p>
       )}
+      <nav className="rpv-tabs">{[["active","Мої заявки"],["history","Історія робіт"],["payments","Мої виплати"]].map(([id,label])=><button key={id} className={view===id?"active":""} onClick={()=>{setView(id);setPage(0);}}>{label}</button>)}</nav>
+      {sent&&<p role="status">Результат передано офісу на перевірку.</p>}
+      {resultApp&&<ServiceResult app={resultApp} onClose={()=>setResultApp(null)} onDone={()=>{setResultApp(null);setSent(true);void refresh();}}/>}
       <div className="rpv-job-grid">
         {apps.map((a) => (
           <ApplicationCard key={a.id} app={a}>
-            <p className="rpv-hint">Етап: {statusLabel(a.contractor_stage)}</p>
+            <p className="rpv-hint">Етап: {a.awaiting_act?"Акт на перевірці":a.arrived_at?"На об’єкті":statusLabel(a.contractor_stage)}</p>
+            {a.review_reason&&<p className="rpv-error">Повернуто на уточнення: {a.review_reason}</p>}
+            {a.has_problem&&<p className="rpv-error">{a.problem_comment}</p>}
+            {a.payout_amount!==undefined&&<p>Сума: {Number(a.payout_amount)>0?`${fmt(a.payout_amount)} грн`:"Уточнюйте в офісі"} · {a.payout_status==="paid"?"Виплачено":a.status==="completed"?"До виплати":"Очікує прийняття роботи"}</p>}
+            {a.customer_contact&&<p><a href={`tel:${a.customer_contact.phone}`}>📞 {a.customer_contact.name||"Контакт на об’єкті"}</a>{" · "}<a href={a.customer_contact.username&&/^[a-zA-Z0-9_]{5,32}$/.test(a.customer_contact.username)?`https://t.me/${a.customer_contact.username}`:`https://t.me/+${a.customer_contact.phone.replace(/\D/g,"")}`} target="_blank" rel="noreferrer">Telegram ↗</a></p>}
             <div className="rpv-job-actions">
               {a.contractor_stage === "offered" &&
-                !["completed", "cancelled"].includes(a.status) && (
+                !["completed", "cancelled"].includes(a.status) && !a.awaiting_act && (
                   <>
                     <button
                       className="primary"
@@ -638,7 +652,7 @@ function ContractorPortal() {
                   </>
                 )}
               {a.contractor_stage === "accepted" &&
-                !["completed", "cancelled"].includes(a.status) && (
+                !["completed", "cancelled"].includes(a.status) && !a.awaiting_act && (
                   <button
                     className="primary"
                     disabled={busy}
@@ -647,9 +661,12 @@ function ContractorPortal() {
                     Виїхав на об’єкт
                   </button>
                 )}
-              <button onClick={openBot}>
-                <Send size={16} /> Здати акт / відкрити бот
-              </button>
+              {!a.awaiting_act && !["completed","cancelled"].includes(a.status) && <>
+                {a.contractor_stage==="departed"&&!a.arrived_at&&<button className="primary" disabled={busy} onClick={()=>transition(a,"arrive")}>На об’єкті</button>}
+                {a.arrived_at&&<button className="primary" disabled={busy} onClick={()=>{setSent(false);setResultApp(a);}}>Передати результат</button>}
+                {a.contractor_stage!=="offered"&&<button disabled={busy} onClick={()=>transition(a,"problem")}>Повідомити про проблему</button>}
+              </>}
+              <button onClick={openBot}><Send size={16}/>Відкрити бот</button>
             </div>
           </ApplicationCard>
         ))}

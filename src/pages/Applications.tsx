@@ -181,6 +181,8 @@ function ApplicationModal({
   const [assigning, setAssigning] =
     useState(false);
 
+  const [completionNotice, setCompletionNotice] = useState(false);
+
   const [changingStatus, setChangingStatus] =
     useState<'in_progress' | 'completed' | null>(null);
 
@@ -245,9 +247,12 @@ function ApplicationModal({
   const handleStatusChange = async (
     status: 'in_progress' | 'completed'
   ) => {
+    if (status === 'completed') {
+      setCompletionNotice(true);
+      return;
+    }
     const previousStatus = visibleStatus;
-    const optimisticStatus: ApplicationStatus =
-      status === 'in_progress' ? 'В роботі' : 'Виконана';
+    const optimisticStatus: ApplicationStatus = 'В роботі';
 
     // Мгновенно меняем интерфейс, не ждём ответа сети.
     setVisibleStatus(optimisticStatus);
@@ -531,9 +536,14 @@ function ApplicationModal({
                 ) : (
                   <CheckCircle2 size={16} />
                 )}
-                Виконана
+                Завершити
               </button>
             </div>
+            {completionNotice && (
+              <div role="status" className="mt-3 rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-200">
+                Для завершення потрібен акт. Підрядник надсилає його через «Завершити» в боті, а офіс підтверджує у розділі «Акти». До підтвердження заявка залишається в роботі; повертати її назад не потрібно.
+              </div>
+            )}
           </section>
 
           <details className="group rounded-xl border border-white/5 bg-white/[0.02]">

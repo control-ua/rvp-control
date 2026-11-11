@@ -31,6 +31,16 @@ export type Application = {
   actual_volume: number | null;
   updated_at: string;
   customer_site_id: string | null;
+  report_state?: string;
+  review_reason?: string;
+  arrived_at?: string | null;
+  awaiting_act?: boolean;
+  has_problem?: boolean;
+  problem_comment?: string | null;
+  payout_amount?: number;
+  payout_status?: string;
+  paid_at?: string | null;
+  customer_contact?: {name:string;phone:string;username:string|null} | null;
 };
 export type Customer = {
   telegram_id: number;
@@ -152,4 +162,11 @@ export function statusLabel(value: string) {
       } as Record<string, string>
     )[value] || value
   );
+}
+
+export async function uploadResult(application:string,request:string,file:File) {
+  const body=new FormData();body.set("initData",window.Telegram?.WebApp?.initData||"");body.set("application",application);body.set("request",request);body.set("file",file);
+  const r=await fetch(endpoint,{method:"POST",body});
+  if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error||"Файл не передано. Повторіть спробу.");}
+  return r.json();
 }

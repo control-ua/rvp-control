@@ -243,12 +243,13 @@ function ActDetailModal({
 }: {
   act: ActItem;
   onClose: () => void;
-  onStatusChange: (actId: string, status: ActStatus) => Promise<void>;
+  onStatusChange: (actId: string, status: ActStatus, reason?:string) => Promise<void>;
 }) {
   const { showToast } = useApp();
   const [currentStatus, setCurrentStatus] = useState<ActStatus>(act.status);
   const [saving, setSaving] = useState<'approved' | 'rejected' | null>(null);
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
+  const [rejectReason,setRejectReason]=useState("");
 
   const handleApprove = async () => {
     setSaving('approved');
@@ -265,10 +266,11 @@ function ActDetailModal({
   };
 
   const handleReject = async () => {
+    if(rejectReason.trim().length<3){showToast("Напишіть причину повернення акта", "error");return;}
     setShowRejectConfirm(false);
     setSaving('rejected');
     try {
-      await onStatusChange(act.id, 'rejected');
+      await onStatusChange(act.id, 'rejected',rejectReason.trim());
       setCurrentStatus('rejected');
       showToast('Акт відхилено', 'success');
     } catch (err) {
@@ -358,6 +360,7 @@ function ActDetailModal({
             <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
               Файли акта {act.files.length > 0 && `(${act.files.length})`}
             </h3>
+            {act.serviceReport&&<div className="mb-4 rounded-lg border border-blue-400/20 bg-blue-500/10 p-4"><p className="font-semibold text-blue-300">Фактичний результат підрядника</p><p className="text-slate-200">Дата: {act.serviceReport.work_date} · {act.serviceReport.volume===null?"Без відкачки":`${act.serviceReport.volume} м³`}</p><p className="whitespace-pre-wrap text-slate-400">{act.serviceReport.notes}</p><p className="mt-2 text-xs text-slate-400">Підтвердження приймає ці дані та публікує акт для прив’язаної АЗК.</p></div>}
             <FileGallery files={act.files} />
           </section>
         </div>
@@ -366,7 +369,7 @@ function ActDetailModal({
         <div className="sticky bottom-0 bg-[#141720] border-t border-white/5 px-6 py-4 flex items-center gap-3">
           <button
             onClick={handleApprove}
-            disabled={saving !== null || currentStatus === 'approved'}
+            disabled={saving !== null || currentStatus !== 'pending'}
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {saving === 'approved' ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
@@ -374,7 +377,7 @@ function ActDetailModal({
           </button>
           <button
             onClick={() => setShowRejectConfirm(true)}
-            disabled={saving !== null || currentStatus === 'rejected'}
+            disabled={saving !== null || currentStatus !== 'pending'}
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {saving === 'rejected' ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}
@@ -397,7 +400,8 @@ function ActDetailModal({
               <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4">
                 <AlertTriangle size={24} className="text-red-400" />
               </div>
-              <h3 className="text-base font-semibold text-white mb-2">Відхилити акт?</h3>
+              <h3 className="text-base font-semibold text-white mb-2">Повернути акт на уточнення?</h3>
+              <label className="block text-left text-sm text-slate-300">Причина для підрядника<textarea aria-label="Причина повернення акта" value={rejectReason} maxLength={2000} onChange={e=>setRejectReason(e.target.value)} className="mt-2 mb-4 w-full rounded-lg bg-white/5 p-3" rows={3}/></label>
               <p className="text-sm text-slate-400 mb-6">Акт {act.actNumber ?? '—'} буде відхилено. Підтвердіть дію.</p>
               <div className="flex items-center gap-3">
                 <button
@@ -449,8 +453,8 @@ export default function Acts() {
     loadActs();
   }, [loadActs]);
 
-  const handleStatusChange = useCallback(async (actId: string, status: ActStatus) => {
-    await updateActStatus(actId, status);
+  const handleStatusChange = useCallback(async (actId: string, status: ActStatus,reason?:string) => {
+    await updateActStatus(actId, status,reason);
     setActs(prev => prev.map(a =>
       a.id === actId
         ? { ...a, status, reviewedAt: new Date().toISOString() }

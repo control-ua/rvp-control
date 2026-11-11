@@ -23,7 +23,8 @@ export function visitStatus(v: Visit, today: string) {
   if (["cancelled", "canceled", "Скасована"].includes(v.status)) return { tone: "muted", label: "Скасовано" };
   if (v.published) return { tone: "done", label: "Виконано · акт опубліковано" };
   if (v.awaiting_act || ["completed", "done", "Виконана"].includes(v.status)) return { tone: "review", label: "Результат на перевірці" };
-  if (v.contractor_stage === "problem" || v.calendar_day < today) return { tone: "attention", label: v.contractor_stage === "problem" ? "Потребує уваги офісу" : "Дата минула · уточнюємо стан" };
+  if (v.has_problem || v.contractor_stage === "problem" || v.calendar_day < today) return { tone: "attention", label: (v.has_problem || v.contractor_stage === "problem") ? "Потребує уваги офісу" : "Дата минула · уточнюємо стан" };
+  if (v.arrived_at) return { tone: "assigned", label: "На об’єкті" };
   if (v.contractor_stage === "departed") return { tone: "assigned", label: "Виконавець виїхав" };
   if (["accepted", "offered"].includes(v.contractor_stage) || ["assigned", "in_progress", "Прийнята", "В роботі"].includes(v.status)) return { tone: "assigned", label: "Виконавця призначено" };
   return { tone: "planned", label: "Бажана дата · очікує узгодження" };

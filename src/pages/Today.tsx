@@ -335,8 +335,9 @@ export default function Today({ onNavigateToApplications }: Props) {
 
   const waitingAct = useMemo(
     () => applications.filter((app) => {
-      if (isFinal(app) || !attention.get(app.id)?.awaiting_act) return false;
+      if (isFinal(app)) return false;
       const appActs = actByApplication.get(app.id) ?? [];
+      if(!attention.get(app.id)?.awaiting_act&&!appActs.some(a=>a.status==='rejected'))return false;
       const hasSubmittedAct = appActs.some((act) =>
         ['pending', 'review', 'on_review', 'approved'].includes(act.status),
       );
@@ -365,19 +366,20 @@ export default function Today({ onNavigateToApplications }: Props) {
     add(overdue, 'Прострочена', 'border-red-500/25 bg-red-500/10 text-red-300', 2);
     add(unassigned, 'Без підрядника', 'border-blue-500/25 bg-blue-500/10 text-blue-300', 3);
     add(todayDeadline, 'Дедлайн сьогодні', 'border-amber-500/25 bg-amber-500/10 text-amber-300', 4);
+    add(pendingActApplications, 'Акт на перевірці', 'border-cyan-500/25 bg-cyan-500/10 text-cyan-300', 4);
     add(waitingAct, 'Чекаємо акт', 'border-orange-500/25 bg-orange-500/10 text-orange-300', 5);
     add(waitingPayout, 'Чекає виплати', 'border-violet-500/25 bg-violet-500/10 text-violet-300', 6);
 
     return result.sort((a, b) => a.weight - b.weight).slice(0, 20);
-  }, [problems, overdue, unassigned, todayDeadline, waitingAct, waitingPayout]);
+  }, [problems, overdue, unassigned, todayDeadline, pendingActApplications, waitingAct, waitingPayout]);
 
   const attentionCount = useMemo(() => {
     const ids = new Set<string>();
-    [problems, overdue, unassigned, todayDeadline, waitingAct, waitingPayout].forEach((list) => {
+    [problems, overdue, unassigned, todayDeadline, pendingActApplications, waitingAct, waitingPayout].forEach((list) => {
       list.forEach((app) => ids.add(app.id));
     });
     return ids.size;
-  }, [problems, overdue, unassigned, todayDeadline, waitingAct, waitingPayout]);
+  }, [problems, overdue, unassigned, todayDeadline, pendingActApplications, waitingAct, waitingPayout]);
 
   const filteredItems = useMemo<PriorityItem[]>(() => {
     switch (queueFilter) {

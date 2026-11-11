@@ -290,8 +290,8 @@ export async function insertApplication(
       description: input.description || null,
       address: input.address || null,
       status: 'assigned',
-      contractor_stage: 'accepted',
-      accepted_at: now,
+      contractor_stage: 'offered',
+      accepted_at: null,
       deadline_at: input.deadlineAt || null,
       scheduled_at: input.deadlineAt || null,
       manager_comment: input.managerComment || null,
@@ -328,24 +328,12 @@ export async function assignApplicationContractor(
 
   await verifyContractor(contractorId);
 
-  const now = new Date().toISOString();
+  const row=await supabase.from('applications').select('updated_at').eq('id',applicationId).single();
+  if(row.error) throw new Error('Заявку не знайдено. Оновіть список.');
+  const {portal}=await import('@/portal/api');
+  const result=await portal<{notificationSent:boolean}>('office.assign',{application:applicationId,contractor:contractorId,version:row.data.updated_at});
+  if(!result.notificationSent) throw new Error('Підрядника призначено, але повідомлення не доставлено. Зв’яжіться з ним та оновіть заявку.');
 
-  const { error: updateError } = await supabase
-    .from('applications')
-    .update({
-      contractor_id: contractorId,
-      status: 'assigned',
-      contractor_stage: 'accepted',
-      accepted_at: now,
-      updated_at: now,
-    })
-    .eq('id', applicationId);
-
-  if (updateError) {
-    throw new Error(`Не вдалося призначити підрядника: ${updateError.message}`);
-  }
-
-  await notifyAssignedApplication(applicationId);
 }
 
 

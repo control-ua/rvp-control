@@ -14,10 +14,14 @@ const origins = new Set(["https://gidraservicedp-alt.github.io"]);
 const sitesFields =
   "id,label,address,capacity_m3,passport_network,passport_city_code,passport_azk_code";
 const appFields =
-  "id,application_number,title,description,address,scheduled_at,deadline_at,status,contractor_stage,actual_volume,updated_at,customer_site_id";
+  "id,application_number,title,description,address,scheduled_at,deadline_at,status,contractor_stage,actual_volume,updated_at,customer_site_id,arrived_at,awaiting_act,has_problem,problem_comment";
 const cities = new Map(ukraineCities.map((c) => [c[0], `${c[1]} · ${c[2]}`]));
 function result<T>(r: { data: T; error: unknown }): T {
   if (r.error) {
+    const code=(r.error as any)?.code;
+    if(code==="40001") throw new PortalError(409,"Заявка змінилася або дія зараз недоступна. Оновіть список.");
+    if(code==="42501") throw new PortalError(403,"Недостатньо прав для цієї дії.");
+    if(code==="22023") throw new PortalError(400,"Перевірте етап роботи, дату, обсяг та причину.");
     console.error("Portal database request failed");
     throw new PortalError(500, "Не вдалося отримати дані. Спробуйте ще раз.");
   }
@@ -107,6 +111,11 @@ async function dispatch(req: Request, b: any): Promise<any> {
         b.action,
       ),
     );
+    if (b.action === "office.assign") {
+      const changed=result(await db.rpc("rpv_service_assign",{p_actor:admin.user_id,p_application:uuid(b.application),p_contractor:uuid(b.contractor),p_version:String(b.version)}));
+      const notice=await fetch(`${URL}/functions/v1/smart-api`,{method:"POST",headers:{"Content-Type":"application/json",Authorization:req.headers.get("Authorization")||""},body:JSON.stringify({action:"notify_application",application_id:b.application})}).then(r=>r.json()).catch(()=>({ok:false}));
+      return {ok:changed,notificationSent:!!notice.ok};
+    }
     if (b.action === "office.list") {
       const status = ["pending", "active", "rejected"].includes(b.status)
         ? b.status
@@ -457,29 +466,36 @@ async function dispatch(req: Request, b: any): Promise<any> {
   }
   if (b.action === "contractor.dashboard") {
     const p = await contractor(user);
-    const apps = list(
-      await db
-        .from("applications")
-        .select(appFields)
-        .eq("contractor_id", p.id)
-        .order("created_at", { ascending: false })
-        .range(page(b.page) * 50, page(b.page) * 50 + 50),
-    );
+    let query=db.from("applications").select(appFields+",payout_amount,payout_status,paid_at,customer_telegram_id").eq("contractor_id",p.id);
+    if(b.view==="history" || b.view==="payments") query=query.eq("status","completed");
+    else query=query.not("status","in","(completed,cancelled)");
+    const apps=list(await query.order("created_at",{ascending:false}).range(page(b.page)*50,page(b.page)*50+50));
+    const ids=[...new Set(apps.map((a:any)=>a.customer_telegram_id).filter(Boolean))];
+    const contacts=ids.length?list(await db.from("customers").select("telegram_id,first_name,last_name,phone,username").in("telegram_id",ids).eq("status","active")):[];
+    const reports=apps.length?list(await db.from("rpv_service_reports").select("application_id,state,review_reason").in("application_id",apps.map((a:any)=>a.id))):[];
+    const mapped=apps.slice(0,50).map((a:any)=>{const contact=contacts.find((c:any)=>c.telegram_id===a.customer_telegram_id);const report=reports.find((r:any)=>r.application_id===a.id);return {...a,report_state:report?.state,review_reason:report?.review_reason,customer_contact:contact?.phone?{name:[contact.first_name,contact.last_name].filter(Boolean).join(" "),phone:contact.phone,username:contact.username}:null};});
     return {
       name: p.first_name,
-      applications: apps.slice(0, 50),
+      applications: mapped,
       more: apps.length > 50,
     };
   }
+  if (b.action === "contractor.report") {
+    await contractor(user);
+    if(typeof b.date!=="string" || !/^\d{4}-\d{2}-\d{2}$/.test(b.date) || (b.volume!==null && (typeof b.volume!=="number" || !Number.isFinite(b.volume) || b.volume<=0 || b.volume>=1000000)) || typeof b.notes!=="string" || b.notes.length>2000)
+      throw new PortalError(400,"Перевірте фактичний обсяг, дату і примітку.");
+    return result(await db.rpc("rpv_service_report",{p_user:user,p_application:uuid(b.application),p_version:String(b.version),p_date:b.date,p_volume:b.volume,p_notes:b.notes}));
+  }
   if (b.action === "contractor.transition") {
     await contractor(user);
-    if (!["accept", "depart", "decline"].includes(b.transition))
+    if (!["accept", "depart", "arrive", "decline", "problem"].includes(b.transition))
       throw new PortalError(400, "Некоректна дія.");
     const changed = result(
-      await db.rpc("rpv_portal_contractor_transition", {
+      await db.rpc("rpv_service_transition", {
         p_user: user,
         p_application: uuid(b.application),
-        p_transition: b.transition,
+        p_action: b.transition,
+        p_note: typeof b.note === "string" ? b.note.slice(0,2000) : "",
         p_version: String(b.version),
       }),
     );
@@ -494,6 +510,36 @@ function page(v: unknown) {
   if (!Number.isInteger(p) || p < 0 || p > 10000)
     throw new PortalError(400, "Некоректна сторінка.");
   return p;
+}
+async function uploadResult(req:Request) {
+  const max=5*1024*1024+16000;
+  if(Number(req.headers.get("content-length"))>max) throw new PortalError(413,"Файл має бути до 5 МБ.");
+  const reader=req.body?.getReader();if(!reader) throw new PortalError(400,"Файл відсутній.");
+  const chunks:Uint8Array[]=[];let length=0;
+  while(true){const item=await reader.read();if(item.done)break;length+=item.value.length;if(length>max){await reader.cancel();throw new PortalError(413,"Файл має бути до 5 МБ.");}chunks.push(item.value);}
+  const bytes=new Uint8Array(length);let offset=0;for(const c of chunks){bytes.set(c,offset);offset+=c.length;}
+  const form=await new Response(bytes,{headers:{"Content-Type":req.headers.get("content-type")||""}}).formData();
+  const user=await verifyTelegram(form.get("initData"),BOT),c=await contractor(user);
+  const id=uuid(form.get("application")),key=uuid(form.get("request"));
+  const a=result(await db.from("applications").select("id,status,contractor_id,arrived_at,application_number").eq("id",id).eq("contractor_id",c.id).maybeSingle());
+  if(!a) throw new PortalError(404,"Заявка недоступна.");
+  const previous=result(await db.from("acts").select("id").eq("id",key).eq("application_id",id).eq("contractor_id",c.id).maybeSingle());
+  if(previous) return {ok:true,act_id:previous.id};
+  if(!a.arrived_at || ["completed","cancelled"].includes(a.status)) throw new PortalError(409,"Заявка змінилася. Оновіть кабінет.");
+  const report=result(await db.from("rpv_service_reports").select("state").eq("application_id",id).eq("contractor_id",c.id).maybeSingle());
+  if(!report || !["draft","submitted"].includes(report.state)) throw new PortalError(400,"Спочатку збережіть обсяг і дату виконання.");
+  const file=form.get("file");
+  if(!(file instanceof File) || file.size===0 || file.size>5*1024*1024) throw new PortalError(400,"Оберіть фото або PDF до 5 МБ.");
+  const sig=new Uint8Array(await file.slice(0,8).arrayBuffer());
+  const pdf=sig[0]===37&&sig[1]===80&&sig[2]===68&&sig[3]===70&&sig[4]===45;
+  const jpg=sig[0]===255&&sig[1]===216&&sig[2]===255;
+  const png=[137,80,78,71,13,10,26,10].every((n,i)=>sig[i]===n);
+  if(!pdf&&!jpg&&!png) throw new PortalError(400,"Дозволені лише PDF, JPG та PNG.");
+  const name=`act-${String(a.application_number||"result").replace(/[^A-Za-z0-9_-]/g,"").slice(0,40)}.${pdf?"pdf":png?"png":"jpg"}`;
+  const payload=new FormData();payload.set("chat_id",String(user));payload.set("document",file,name);payload.set("caption",`Копія акта за заявкою ${a.application_number}. Результат передається офісу на перевірку.`);
+  const sent=await fetch(`https://api.telegram.org/bot${BOT}/sendDocument`,{method:"POST",body:payload}).then(r=>r.json());
+  if(!sent.ok || !sent.result?.document?.file_id) throw new PortalError(502,"Не вдалося зберегти файл у Telegram. Повторіть надсилання.");
+  return result(await db.rpc("rpv_service_attach",{p_user:user,p_application:id,p_key:key,p_file:sent.result.document.file_id,p_type:"document",p_name:name}));
 }
 Deno.serve(async (req) => {
   const origin = req.headers.get("origin");
@@ -520,6 +566,9 @@ Deno.serve(async (req) => {
       headers,
     });
   try {
+    if((req.headers.get("content-type")||"").startsWith("multipart/form-data")) {
+      return new Response(JSON.stringify(await uploadResult(req)),{headers});
+    }
     if (Number(req.headers.get("content-length")) > 16000)
       throw new PortalError(413, "Запит завеликий.");
     const text = await req.text();

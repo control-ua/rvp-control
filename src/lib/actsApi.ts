@@ -18,6 +18,7 @@ export function telegramFileUrl(telegramFileId: string): string {
 }
 
 export interface ActItem {
+  serviceReport?: {work_date:string;volume:number|null;notes:string;state:string};
   id: string;
   actNumber: string | null;
   actDate: string | null;
@@ -45,6 +46,7 @@ interface ActRow {
   reviewed_at: string | null;
   act_number: string | null;
   act_date: string | null;
+  service_report: ActItem["serviceReport"];
 }
 
 interface ContractorRow {
@@ -80,7 +82,8 @@ const ACT_SELECT = `
   created_at,
   reviewed_at,
   act_number,
-  act_date
+  act_date,
+  service_report
 `;
 
 function buildContractorName(c: ContractorRow | null): string {
@@ -102,26 +105,13 @@ function buildContractorName(c: ContractorRow | null): string {
 export async function updateActStatus(
   actId: string,
   status: ActStatus,
+  reason?: string,
 ): Promise<void> {
   if (!actId) {
     throw new Error('ID акта відсутній.');
   }
 
-  if (status === 'pending') {
-    const { error } = await supabase
-      .from('acts')
-      .update({
-        status: 'pending',
-        reviewed_at: null,
-      })
-      .eq('id', actId);
-
-    if (error) {
-      throw new Error(`Не вдалося оновити статус акта: ${error.message}`);
-    }
-
-    return;
-  }
+  if(status==='pending') throw new Error('Прийнятий акт не можна скинути. Потрібна окрема процедура виправлення.');
 
   const action =
     status === 'approved'
@@ -135,6 +125,7 @@ export async function updateActStatus(
     body: {
       action,
       act_id: actId,
+      reason,
     },
   });
 
@@ -298,6 +289,7 @@ export async function fetchActs(): Promise<ActItem[]> {
         : null;
 
     return {
+      serviceReport:row.service_report,
       id: row.id,
       actNumber:
         row.act_number,

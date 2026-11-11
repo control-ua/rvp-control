@@ -387,7 +387,8 @@ export async function deleteSelectedApplications(
 }
 
 
-export type SyncedApplicationStatus = 'new' | 'in_progress' | 'completed';
+// Completion goes through act review; the status API cannot complete an application.
+export type SyncedApplicationStatus = 'new' | 'in_progress';
 
 export type UpdateApplicationStatusResult = {
   ok: boolean;

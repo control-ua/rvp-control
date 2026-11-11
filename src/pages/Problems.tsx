@@ -3,6 +3,7 @@ import { AlertTriangle, CheckCircle2, Loader2, MapPin, RefreshCw, User } from 'l
 import PageHeader from '@/components/PageHeader';
 import { useApp } from '@/context/AppContext';
 import { supabase } from '@/lib/supabase';
+import { resolveApplicationProblem } from '@/lib/operationsApi';
 
 type ProblemRow = {
   id: string;
@@ -57,24 +58,16 @@ export default function Problems({ onNavigateToApplications }: Props) {
 
   const resolve = async (item: ProblemRow) => {
     setResolving(item.id);
-    const update: Record<string, unknown> = {
-      has_problem: false,
-      problem_comment: null,
-      updated_at: new Date().toISOString(),
-    };
-    if (item.contractor_stage === 'problem') update.contractor_stage = 'accepted';
-
-    const { error } = await supabase
-      .from('applications')
-      .update(update)
-      .eq('id', item.id);
-
-    if (error) showToast(`Не вдалося закрити проблему: ${error.message}`, 'error');
-    else {
+    try {
+      await resolveApplicationProblem(item.id);
+      setItems((rows) => rows.filter((row) => row.id !== item.id));
       showToast('Проблему позначено як вирішену', 'success');
       await load();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Не вдалося закрити проблему', 'error');
+    } finally {
+      setResolving(null);
     }
-    setResolving(null);
   };
 
   return (

@@ -1,7 +1,9 @@
+import { makeServiceWorkflow, authorizeServiceOffice } from "./service_workflow.ts";
+import { notifyPublished } from "./workflow_notifications.ts";
 import { handleWebPortal } from './web_portal.ts';
 import { CUSTOMER_ADMIN_MENU, makeCustomerCabinet } from "./customer_cabinet.ts";
 import { makeCustomerTelegram } from "./customer_telegram.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,8 +24,6 @@ const ORDER_PARSER_SECRET = Deno.env.get("ORDER_PARSER_SECRET");
 const PUSH_INTERNAL_SECRET = Deno.env.get("PUSH_INTERNAL_SECRET");
 const PUSH_NOTIFY_ENDPOINT = `${SUPABASE_URL}/functions/v1/push-notify`;
 
-const ORDER_PARSER_ENDPOINT =
-  "https://nydjhcpdtahfluxvjguw.supabase.co/functions/v1/order-card-bot";
 
 
 const CUSTOMER_GROUP_CHAT_ID =
@@ -1962,6 +1962,7 @@ function isAdminContractorState(
       "admin_contractor_mode" ||
     state ===
       "manager_message" ||
+    /^wf_(volume|date|note|upload|decline|problem):/.test(state || "") ||
     Boolean(
       state?.startsWith(
         "waiting_act:",
@@ -2987,6 +2988,7 @@ async function showApplications(
       .in(
         "contractor_stage",
         [
+          "offered",
           "accepted",
           "departed",
           "problem"
@@ -3077,126 +3079,9 @@ async function showApplications(
   );
 }
 
-async function showContractorApplicationCard(
-  chatId: number,
-  telegramId: number,
-  applicationId: string,
-) {
-  const contractor =
-    await getContractor(
-      telegramId,
-    );
-
-  if (!contractor) {
-    return;
-  }
-
-  const { data: app, error } =
-    await supabase
-      .from("applications")
-      .select("*")
-      .eq("id", applicationId)
-      .eq(
-        "contractor_id",
-        contractor.id,
-      )
-      .maybeSingle();
-
-  if (error || !app) {
-    await sendMessage(
-      chatId,
-      "❌ Заявку не знайдено.",
-      mainMenu(telegramId),
-    );
-    return;
-  }
-
-  const stageText =
-    app.contractor_stage === "problem"
-      ? "⚠️ Є проблема"
-      : "✅ Прийнято";
-
-  let body =
-    "📋 <b>КАРТКА ЗАЯВКИ</b>\n" +
-    "━━━━━━━━━━━━━━━━\n\n" +
-    formatWorkCardFields(
-      app,
-    ) +
-    `📊 Статус: <b>${stageText}</b>\n`;
-
-  if (app.accepted_at) {
-    body +=
-      `\nПрийнято: ${escapeHtml(
-        formatKyivDate(
-          app.accepted_at,
-        ),
-      )}`;
-  }
-
-  if (
-    app.has_problem &&
-    app.problem_comment
-  ) {
-    body +=
-      `\n\n⚠️ <b>Проблема:</b> ${escapeHtml(
-        app.problem_comment,
-      )}`;
-  }
-
-  const buttons: any[][] = [];
-
-  const locationUrl =
-    mapsUrl(
-      app.address,
-    );
-
-  if (locationUrl) {
-    buttons.push([
-      {
-        text:
-          "📍 Відкрити адресу",
-        url:
-          locationUrl,
-      },
-    ]);
-  }
-
-  if (app.status !== "in_progress" && app.status !== "completed") {
-    buttons.push([{
-      text: "🔵 Почати",
-      callback_data: `startwork:${app.id}`,
-    }]);
-  }
-
-  if (app.status !== "completed") {
-    buttons.push([
-      {
-        text: "📸 Завершити",
-        callback_data: `contractordone:${app.id}`,
-      },
-      {
-        text: "⚠️ Проблема",
-        callback_data: `contractorproblem:${app.id}`,
-      },
-    ]);
-  }
-
-  buttons.push([
-    {
-      text: "◀️ Назад до списку",
-      callback_data:
-        "contractorappslist",
-    },
-  ]);
-
-  await sendMessage(
-    chatId,
-    body,
-    {
-      inline_keyboard:
-        buttons,
-    },
-  );
+async function showContractorApplicationCard(chatId: number,telegramId: number,applicationId: string) {
+  try { await serviceWorkflow.card(chatId,telegramId,applicationId); }
+  catch { await sendMessage(chatId,"Заявка недоступна. Оновіть список.",mainMenu(telegramId)); }
 }
 
 // =====================================================
@@ -3887,7 +3772,8 @@ async function openAct(
       act_date,
       status,
       group_chat_id,
-      group_message_id
+      group_message_id,
+      service_report
     `)
     .eq(
       "id",
@@ -3987,7 +3873,7 @@ async function openAct(
     }
   }
 
-  const caption =
+  let caption =
     "📑 <b>АКТ</b>\n\n" +
     `🧾 Номер: <b>${escapeHtml(
       act.act_number || "Без номера",
@@ -4013,6 +3899,8 @@ async function openAct(
         act.status,
       ),
     )}</b>`;
+
+  if(act.service_report) caption += `\n\n📊 Фактичний результат: ${act.service_report.volume===null?"без відкачки":`${act.service_report.volume} м³`}\n📅 Дата виконання: ${escapeHtml(act.service_report.work_date)}\n${escapeHtml(act.service_report.notes||"")}`;
 
   if (
     act.file_type ===
@@ -4124,687 +4012,27 @@ async function openAct(
 // CONFIRM ACT
 // =====================================================
 
-async function confirmAct(
-  chatId: number,
-  actId: string,
-) {
-  console.log(
-    "================================",
-  );
-
-  console.log(
-    "CONFIRM ACT START",
-  );
-
-  console.log(
-    "chatId:",
-    chatId,
-  );
-
-  console.log(
-    "actId:",
-    actId,
-  );
-
-  console.log(
-    "actId type:",
-    typeof actId,
-  );
-
-  console.log(
-    "================================",
-  );
-
-  if (!actId) {
-    await sendMessage(
-      chatId,
-      "❌ ID акта порожній.",
-    );
-
-    return;
-  }
-
-  const {
-    data: act,
-    error: actError,
-  } = await supabase
-    .from("acts")
-    .select(`
-      id,
-      contractor_id,
-      application_id,
-      status,
-      file_name,
-      file_type,
-      telegram_file_id,
-      group_chat_id,
-      group_message_id
-    `)
-    .eq(
-      "id",
-      actId,
-    )
-    .maybeSingle();
-
-  console.log(
-    "CONFIRM ACT DB RESULT:",
-    JSON.stringify({
-      act,
-      error: actError,
-    }),
-  );
-
-  if (actError) {
-    console.error(
-      "CONFIRM ACT DB ERROR:",
-      actError,
-    );
-
-    await sendMessage(
-      chatId,
-      "❌ Помилка БД при отриманні акта.\n\n" +
-        `<code>${escapeHtml(
-          actError.message,
-        )}</code>`,
-    );
-
-    return;
-  }
-
-  if (!act) {
-    console.error(
-      "ACT NOT FOUND:",
-      actId,
-    );
-
-    await sendMessage(
-      chatId,
-      "❌ <b>Акт не знайдено.</b>\n\n" +
-        `ID акта: <code>${escapeHtml(
-          actId,
-        )}</code>`,
-    );
-
-    return;
-  }
-
-  if (
-    act.status !==
-    "pending"
-  ) {
-    await sendMessage(
-      chatId,
-      "ℹ️ Цей акт уже оброблено.\n\n" +
-        `Поточний статус: <b>${escapeHtml(
-          getActStatusText(
-            act.status,
-          ),
-        )}</b>`,
-    );
-
-    return;
-  }
-
-  if (
-    !act.application_id
-  ) {
-    await sendMessage(
-      chatId,
-      "❌ У акта немає заявки.",
-    );
-
-    return;
-  }
-
-  const {
-    data: application,
-    error:
-      applicationError,
-  } = await supabase
-    .from("applications")
-    .select(`
-      id,
-      application_number,
-      contractor_id,
-      title,
-      description,
-      address,
-      azk_code,
-      order_date_text,
-      status
-    `)
-    .eq(
-      "id",
-      act.application_id,
-    )
-    .maybeSingle();
-
-  if (
-    applicationError
-  ) {
-    console.error(
-      "APPLICATION ERROR:",
-      applicationError,
-    );
-
-    await sendMessage(
-      chatId,
-      "❌ Помилка при отриманні заявки.\n\n" +
-        `<code>${escapeHtml(
-          applicationError.message,
-        )}</code>`,
-    );
-
-    return;
-  }
-
-  if (!application) {
-    await sendMessage(
-      chatId,
-      "❌ Заявку не знайдено.",
-    );
-
-    return;
-  }
-
-  if (
-    application.contractor_id !==
-    act.contractor_id
-  ) {
-    await sendMessage(
-      chatId,
-      "❌ Акт та заявка належать різним підрядникам.",
-    );
-
-    return;
-  }
-
-  const {
-    data: contractor,
-  } = await supabase
-    .from("contractors")
-    .select(`
-      id,
-      telegram_id,
-      first_name,
-      last_name
-    `)
-    .eq(
-      "id",
-      act.contractor_id,
-    )
-    .maybeSingle();
-
-  if (!contractor) {
-    await sendMessage(
-      chatId,
-      "❌ Підрядника не знайдено.",
-    );
-
-    return;
-  }
-
-  const completedAt =
-    new Date().toISOString();
-
-  // ===================================================
-  // UPDATE ACT
-  // ===================================================
-
-  const {
-    error:
-      actUpdateError,
-  } = await supabase
-    .from("acts")
-    .update({
-      status:
-        "approved",
-
-      reviewed_at:
-        completedAt,
-    })
-    .eq(
-      "id",
-      act.id,
-    )
-    .eq(
-      "status",
-      "pending",
-    );
-
-  if (actUpdateError) {
-    console.error(
-      "ACT UPDATE ERROR:",
-      actUpdateError,
-    );
-
-    await sendMessage(
-      chatId,
-      "❌ Не вдалося підтвердити акт.\n\n" +
-        `<code>${escapeHtml(
-          actUpdateError.message,
-        )}</code>`,
-    );
-
-    return;
-  }
-
-  // ===================================================
-  // UPDATE APPLICATION
-  // ===================================================
-
-  const {
-    error:
-      applicationUpdateError,
-  } = await supabase
-    .from("applications")
-    .update({
-      status:
-        "completed",
-
-      contractor_stage:
-        "completed",
-
-      payout_status:
-        "pending",
-
-      updated_at:
-        completedAt,
-    })
-    .eq(
-      "id",
-      application.id,
-    );
-
-  if (
-    applicationUpdateError
-  ) {
-    console.error(
-      "APPLICATION UPDATE ERROR:",
-      applicationUpdateError,
-    );
-
-    await supabase
-      .from("acts")
-      .update({
-        status:
-          "pending",
-
-        reviewed_at:
-          null,
-      })
-      .eq(
-        "id",
-        act.id,
-      );
-
-    await sendMessage(
-      chatId,
-      "❌ Не вдалося завершити заявку.",
-    );
-
-    return;
-  }
-
-  // ===================================================
-  // HISTORY
-  // ===================================================
-
-  const {
-    data: existingHistory,
-    error:
-      historyCheckError,
-  } = await supabase
-    .from("work_history")
-    .select("id")
-    .eq(
-      "application_id",
-      application.id,
-    )
-    .maybeSingle();
-
-  if (historyCheckError) {
-    console.error(
-      "HISTORY CHECK:",
-      historyCheckError,
-    );
-  }
-
-  if (!existingHistory) {
-    const {
-      error:
-        historyError,
-    } = await supabase
-      .from("work_history")
-      .insert({
-        application_id:
-          application.id,
-
-        contractor_id:
-          application.contractor_id,
-
-        title:
-          application.title ||
-          "Виконана робота",
-
-        description:
-          application.description ||
-          null,
-
-        completed_at:
-          completedAt,
-      });
-
-    if (historyError) {
-      console.error(
-        "HISTORY INSERT:",
-        historyError,
-      );
-
-      await supabase
-        .from("applications")
-        .update({
-          status:
-            "assigned",
-
-          updated_at:
-            new Date().toISOString(),
-        })
-        .eq(
-          "id",
-          application.id,
-        );
-
-      await supabase
-        .from("acts")
-        .update({
-          status:
-            "pending",
-
-          reviewed_at:
-            null,
-        })
-        .eq(
-          "id",
-          act.id,
-        );
-
-      await sendMessage(
-        chatId,
-        "❌ Не вдалося додати роботу до історії.",
-      );
-
-      return;
-    }
-  }
-
-  const contractorName =
-    `${contractor.first_name || ""} ${
-      contractor.last_name || ""
-    }`.trim() ||
-    "Без імені";
-
-  // ===================================================
-  // UPDATE GROUP
-  // ===================================================
-
-  await updateActGroupMessage(
-    {
-      ...act,
-
-      contractor_first_name:
-        contractor.first_name,
-
-      contractor_last_name:
-        contractor.last_name,
-
-      application_number:
-        application.application_number,
-
-      application_title:
-        application.title,
-
-      application_description:
-        application.description,
-
-      application_address:
-        application.address,
-
-      application_azk_code:
-        application.azk_code,
-
-      application_order_date_text:
-        application.order_date_text,
-    },
-    "approved",
-  );
-
-  // ===================================================
-  // ADMIN RESPONSE
-  // ===================================================
-
-  await sendMessage(
-    chatId,
-    "✅ <b>АКТ ПІДТВЕРДЖЕНО</b>\n\n" +
-      `🔢 Заявка: <b>${escapeHtml(
-        application.application_number ||
-          "G-0000",
-      )}</b>\n` +
-      `🏢 ${escapeHtml(
-        application.title ||
-          "Без назви",
-      )}\n` +
-      `👤 Підрядник: <b>${escapeHtml(
-        contractorName,
-      )}</b>\n\n` +
-      "✅ Заявка завершена.\n" +
-      "📚 Роботу додано до історії.",
-    isAdmin(chatId)
-      ? adminMenu()
-      : undefined,
-  );
-
-  // ===================================================
-  // CONTRACTOR NOTIFICATION
-  // ===================================================
-
-  if (
-    contractor.telegram_id
-  ) {
-    await sendMessage(
-      contractor.telegram_id,
-      "🎉 <b>АКТ ПІДТВЕРДЖЕНО!</b>\n\n" +
-        `🔢 Заявка: <b>${escapeHtml(
-          application.application_number ||
-            "G-0000",
-        )}</b>\n` +
-        `🏢 ${escapeHtml(
-          application.title ||
-            "Без назви",
-        )}\n\n` +
-        "✅ Робота завершена.\n" +
-        "📚 Вона додана до вашої історії робіт.",
-      mainMenu(
-        contractor.telegram_id,
-      ),
-    );
-  }
+async function reviewServiceAct(chatId:number,actId:string,decision:string,reason="",actor?:string) {
+  const {data,error}=await supabase.rpc("rpv_service_review",{p_actor:actor || `telegram:${chatId}`,p_act:actId,p_decision:decision,p_reason:reason});
+  if(error) { await sendMessage(chatId,"Не вдалося прийняти рішення. Перевірте акт, дату, обсяг та прив’язку АЗК. Оновіть список.");return false; }
+  if(!data?.changed) {await sendMessage(chatId,"Цей акт уже оброблено.");return true;}
+  const {data:act}=await supabase.from("acts").select("*").eq("id",actId).maybeSingle();
+  const {data:app}=await supabase.from("applications").select("*").eq("id",data.application_id).maybeSingle();
+  const {data:c}=await supabase.from("contractors").select("first_name,last_name").eq("id",act?.contractor_id).maybeSingle();
+  if(app) await syncWorkCardStatus(app);
+  if(act) await updateActGroupMessage({...act,contractor_first_name:c?.first_name,contractor_last_name:c?.last_name,application_number:app?.application_number,application_title:app?.title,application_description:app?.description,application_address:app?.address,application_azk_code:app?.azk_code,application_order_date_text:app?.order_date_text},decision as "approved" | "rejected");
+  await sendMessage(chatId,decision==="approved"?"✅ Акт підтверджено. Роботу додано до історії."+(data.publication?" Акт та обсяг опубліковано замовнику.":" Для старого акта без результату перевірте публікацію окремо."):"Акт повернуто підряднику на уточнення.");
+  if(data.contractor_telegram_id) await sendMessage(data.contractor_telegram_id,decision==="approved"?`✅ Заявку ${escapeHtml(data.application_number)} підтверджено. Нарахування та стан виплати — у кабінеті.`:`❗ Акт за заявкою ${escapeHtml(data.application_number)} повернуто.\nПричина: ${escapeHtml(reason)}\nВідкрийте заявку та передайте виправлений результат.`,mainMenu(data.contractor_telegram_id));
+  if(data.publication) {try{await notifyPublished(supabase,BOT_TOKEN!,data.publication);}catch{console.warn("Customer publication notification pending");}}
+  return true;
 }
+async function confirmAct(chatId:number,actId:string,actor?:string){return reviewServiceAct(chatId,actId,"approved","",actor);}
 
 // =====================================================
 // REJECT ACT
 // =====================================================
 
-async function rejectAct(
-  chatId: number,
-  actId: string,
-) {
-  console.log(
-    "REJECT ACT:",
-    actId,
-  );
-
-  if (!actId) {
-    await sendMessage(
-      chatId,
-      "❌ ID акта порожній.",
-    );
-
-    return;
-  }
-
-  const {
-    data: act,
-    error,
-  } = await supabase
-    .from("acts")
-    .select(`
-      id,
-      contractor_id,
-      status,
-      file_name,
-      group_chat_id,
-      group_message_id
-    `)
-    .eq(
-      "id",
-      actId,
-    )
-    .maybeSingle();
-
-  console.log(
-    "REJECT ACT RESULT:",
-    JSON.stringify({
-      act,
-      error,
-    }),
-  );
-
-  if (error) {
-    await sendMessage(
-      chatId,
-      "❌ Помилка БД.\n\n" +
-        `<code>${escapeHtml(
-          error.message,
-        )}</code>`,
-    );
-
-    return;
-  }
-
-  if (!act) {
-    await sendMessage(
-      chatId,
-      "❌ <b>Акт не знайдено.</b>\n\n" +
-        `ID: <code>${escapeHtml(
-          actId,
-        )}</code>`,
-    );
-
-    return;
-  }
-
-  if (
-    act.status !==
-    "pending"
-  ) {
-    await sendMessage(
-      chatId,
-      "ℹ️ Цей акт уже оброблено.",
-    );
-
-    return;
-  }
-
-  const {
-    error:
-      updateError,
-  } = await supabase
-    .from("acts")
-    .update({
-      status:
-        "rejected",
-
-      reviewed_at:
-        new Date().toISOString(),
-    })
-    .eq(
-      "id",
-      act.id,
-    )
-    .eq(
-      "status",
-      "pending",
-    );
-
-  if (updateError) {
-    console.error(
-      "rejectAct:",
-      updateError,
-    );
-
-    await sendMessage(
-      chatId,
-      "❌ Не вдалося відхилити акт.\n\n" +
-        `<code>${escapeHtml(
-          updateError.message,
-        )}</code>`,
-    );
-
-    return;
-  }
-
-  const {
-    data: contractor,
-  } = await supabase
-    .from("contractors")
-    .select(`
-      telegram_id,
-      first_name,
-      last_name
-    `)
-    .eq(
-      "id",
-      act.contractor_id,
-    )
-    .maybeSingle();
-
-  if (contractor) {
-    await updateActGroupMessage(
-      {
-        ...act,
-
-        contractor_first_name:
-          contractor.first_name,
-
-        contractor_last_name:
-          contractor.last_name,
-      },
-      "rejected",
-    );
-  }
-
-  await sendMessage(
-    chatId,
-    "❌ <b>АКТ ВІДХИЛЕНО</b>",
-    isAdmin(chatId)
-      ? adminMenu()
-      : undefined,
-  );
-
-  if (
-    contractor?.telegram_id
-  ) {
-    await sendMessage(
-      contractor.telegram_id,
-      "❌ <b>Ваш акт відхилено.</b>\n\n" +
-        "Будь ласка, зв'яжіться з менеджером.",
-      mainMenu(
-        contractor.telegram_id,
-      ),
-    );
-  }
-}
+async function rejectAct(chatId:number,actId:string,reason="",actor?:string){return reviewServiceAct(chatId,actId,"rejected",reason,actor);}
 
 // =====================================================
 // ADMIN ACTS
@@ -8282,6 +7510,7 @@ async function finalizeMultiAct(
   if (extraFilesCount > 0) {
     caption += `📎 Ще файлів у системі: <b>${extraFilesCount}</b>\n`;
   }
+  if(act.service_report) caption += `📊 ${act.service_report.volume===null?"Без відкачки":`${act.service_report.volume} м³`} · ${escapeHtml(act.service_report.work_date)}\n`;
   caption += `⏳ <b>Очікує перевірки</b>`;
 
   const groupMessage =
@@ -8330,16 +7559,7 @@ async function finalizeMultiAct(
     console.error("SAVE ACT GROUP MESSAGE:", saveGroupError);
   }
 
-  // Акт відправлено успішно — заявка завершується автоматично.
-  const { data: completedApp, error: completeError } = await supabase
-    .from("applications")
-    .update({ status: "completed", updated_at: new Date().toISOString() })
-    .eq("id", app.id)
-    .select("id,application_number,title,address,description,deadline_at,order_date_text,status,work_card_chat_id,work_card_message_id")
-    .maybeSingle();
-  if (completeError) console.error("AUTO COMPLETE APPLICATION:", completeError);
-  if (completedApp) await syncWorkCardStatus(completedApp);
-
+  // The report stays in progress / awaiting_act until office review commits.
   for (
     const adminId of
       ADMIN_IDS
@@ -8386,7 +7606,7 @@ async function finalizeMultiAct(
 
   await sendMessage(
     chatId,
-    "✅ <b>Готово</b>\n\nАкт відправлено, заявку автоматично позначено як <b>Виконана</b>.",
+    "✅ <b>Готово</b>\n\nАкт передано офісу на перевірку. Після підтвердження результат з’явиться у замовника.",
     mainMenu(telegramId),
   );
 }
@@ -8496,6 +7716,8 @@ async function handleCallback(
   ) {
     return;
   }
+
+  if (await serviceWorkflow.callback(callback)) return;
 
   // ===================================================
   // NEW APPLICATION FROM ORDER PARSER -> CLAIM IN WORK GROUP
@@ -10214,6 +9436,7 @@ async function handleCallback(
       await confirmAct(
         GROUP_CHAT_ID,
         actId,
+        `telegram:${userId}`,
       );
 
       return;
@@ -10223,6 +9446,7 @@ async function handleCallback(
     await confirmAct(
       chatId,
       actId,
+      `telegram:${userId}`,
     );
 
     return;
@@ -10884,6 +10108,8 @@ async function handleMessage(
     );
     return;
   }
+
+  if (await serviceWorkflow.message(message)) return;
 
   // ===================================================
   // CHAT ID
@@ -13029,24 +12255,7 @@ async function notifyApplicationFromWeb(
     return { ok: false, error: "Contractor has no telegram_id" };
   }
 
-  // Назначение подтверждает диспетчер в Bolt.
-  // Подрядчику не требуется дополнительное принятие заявки в Telegram.
-  const now = new Date().toISOString();
-  const { error: updateError } = await supabase
-    .from("applications")
-    .update({
-      status: "assigned",
-      contractor_stage: "accepted",
-      accepted_at: now,
-      updated_at: now,
-    })
-    .eq("id", application.id);
-
-  if (updateError) {
-    console.error("WEB APPLICATION STATUS ERROR:", updateError);
-    return { ok: false, error: updateError.message };
-  }
-
+  if (["completed","cancelled"].includes(application.status)) return {ok:false,error:"Заявка закрита."};
   const result = await sendMessage(
     contractor.telegram_id,
     "📋 <b>ВАМ ПРИЗНАЧЕНО НОВУ ЗАЯВКУ</b>\n" +
@@ -13059,9 +12268,10 @@ async function notifyApplicationFromWeb(
       (application.manager_comment
         ? `\n📝 ${escapeHtml(application.manager_comment)}`
         : "") +
-      "\n\n✅ Заявку вже призначено вам диспетчером.",
+      "\n\nПідтвердьте, чи готові виконати цю заявку.",
     {
       inline_keyboard: [[
+        ...(application.contractor_stage === "offered" ? [{text:"✅ Прийняти",callback_data:`contractoraccept:${application.id}`},{text:"❌ Відмовитися",callback_data:`contractordecline:${application.id}`}] : []),
         {
           text: "📋 Відкрити заявку",
           callback_data: `contractorapp:${application.id}`,
@@ -13098,7 +12308,7 @@ async function notifyApplicationFromWeb(
     ok: true,
     application_id: application.id,
     telegram_id: contractor.telegram_id,
-    contractor_stage: "accepted",
+    contractor_stage: application.contractor_stage,
     message_id: sentMessageId,
   };
 }
@@ -13417,60 +12627,14 @@ async function createExternalApplication(payload: any) {
 }
 
 
-async function syncWorkCardStatus(application: any) {
-  if (
-    !application?.work_card_chat_id ||
-    !application?.work_card_message_id
-  ) {
-    return {
-      ok: false,
-      skipped: true,
-      error: "У цієї заявки ще немає прив'язаної картки Telegram.",
-    };
-  }
-
-  if (!ORDER_PARSER_SECRET) {
-    return {
-      ok: false,
-      error: "ORDER_PARSER_SECRET is missing",
-    };
-  }
-
-  try {
-    const response = await fetch(ORDER_PARSER_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-order-parser-secret": ORDER_PARSER_SECRET,
-      },
-      body: JSON.stringify({
-        action: "sync_work_card_status",
-        application_id: application.id,
-        application_number: application.application_number,
-        title: application.title,
-        address: application.address,
-        description: application.description,
-        deadline_at: application.deadline_at,
-        deadline_text: application.order_date_text || null,
-        status: application.status,
-        work_card_chat_id: application.work_card_chat_id,
-        work_card_message_id: application.work_card_message_id,
-      }),
-    });
-
-    const result = await response.json().catch(() => ({}));
-
-    if (!response.ok || !result?.ok) {
-      return {
-        ok: false,
-        error: result?.error || `Parser HTTP ${response.status}`,
-      };
-    }
-
-    return { ok: true };
-  } catch (error) {
-    return { ok: false, error: String(error) };
-  }
+async function syncWorkCardStatus(application:any) {
+  if(!application?.work_card_chat_id||!application?.work_card_message_id)return {ok:false,skipped:true,error:"Картку Telegram ще не прив’язано."};
+  const short=(v:unknown,n=350)=>escapeHtml(String(v||"").slice(0,n));
+  const state=application.awaiting_act?"⏳ Результат на перевірці":application.status==="completed"?"✅ Роботу підтверджено":application.has_problem?"⚠️ Потребує уваги":application.arrived_at?"📍 На об’єкті":application.contractor_stage==="departed"?"🚗 В дорозі":getApplicationStatusText(application.status);
+  const text=`📋 <b>${short(application.application_number,80)}</b>\n🏢 ${short(application.title,180)}\n📍 ${short(application.address)}\n🔧 ${short(application.description,600)}\n\n${state}`;
+  const rows=["completed","cancelled"].includes(application.status)?[]:!application.contractor_id&&application.status==="new"?[[{text:"✅ Прийняти заявку",callback_data:`externalclaim:${application.id}`}]]:[[{text:"📋 Відкрити заявку",callback_data:`contractorapp:${application.id}`}]];
+  const result=await telegram("editMessageText",{chat_id:application.work_card_chat_id,message_id:application.work_card_message_id,text,parse_mode:"HTML",reply_markup:{inline_keyboard:rows}});
+  return {ok:!!result?.ok||String(result?.description||"").includes("message is not modified"),error:result?.description};
 }
 
 async function registerWorkCardFromParser(payload: any) {
@@ -13512,6 +12676,9 @@ async function updateApplicationStatusFromWeb(
     };
   }
 
+  if(requestedStatus==="completed") return {ok:false,status:400,error:"Завершення роботи виконується підтвердженням акта."};
+  const current=await supabase.from("applications").select("status,updated_at,contractor_id,awaiting_act").eq("id",applicationId).maybeSingle();
+  if(current.error||!current.data||["completed","cancelled"].includes(current.data.status)||current.data.awaiting_act||(requestedStatus==="new"&&current.data.contractor_id)) return {ok:false,status:409,error:"Заявка закрита, має виконавця або очікує перевірки. Оновіть список."};
   const { data: application, error } = await supabase
     .from("applications")
     .update({
@@ -13519,6 +12686,7 @@ async function updateApplicationStatusFromWeb(
       updated_at: new Date().toISOString(),
     })
     .eq("id", applicationId)
+    .eq("updated_at",current.data.updated_at)
     .select(`
       id,
       application_number,
@@ -13564,6 +12732,10 @@ const customerCabinet = makeCustomerCabinet({
   adminIds: () => [...new Set([...ADMIN_IDS, ...dynamicAdminIds])],
   isAdmin, rateLimit: rateLimitAllowed, clearSession, adminMenu,
 });
+
+const serviceWorkflow = makeServiceWorkflow({ db:supabase,send:telegram,getSession,setSession,
+  resetSession:resetContractorSession,isAdmin,mainMenu,finalizeAct:finalizeMultiAct,
+  clearSession,onTransition:async(id:string)=>{const r=await supabase.from("applications").select("*").eq("id",id).maybeSingle();if(r.data)await syncWorkCardStatus(r.data);},rejectAct:(chat:number,id:string,reason:string)=>rejectAct(chat,id,reason) });
 
 Deno.serve(
   async (
@@ -13615,6 +12787,12 @@ Deno.serve(
 
       const update =
         await req.json();
+
+      let workflowWebActor: string | null = null;
+      if (["notify_application","approve_act_from_web","reject_act_from_web","update_application_status_from_web"].includes(update?.action)) {
+        workflowWebActor=await authorizeServiceOffice(supabase,req.headers.get("Authorization")||"");
+        if(!workflowWebActor) return new Response(JSON.stringify({ok:false,error:"Недостатньо прав для цієї дії."}),{status:403,headers:{...corsHeaders,"Content-Type":"application/json"}});
+      }
 
       // =================================================
       // RVP ORDER PARSER -> CREATE APPLICATION
@@ -13827,7 +13005,7 @@ Deno.serve(
         }
 
         const ids = Array.isArray(update?.application_ids)
-          ? [...new Set(
+          ? [...new Set<string>(
               update.application_ids
                 .map((id: unknown) => String(id || "").trim())
                 .filter(Boolean),
@@ -14076,12 +13254,10 @@ Deno.serve(
             await confirmAct(
               adminChatId,
               actId,
+              workflowWebActor || undefined,
             );
           } else {
-            await rejectAct(
-              adminChatId,
-              actId,
-            );
+            await rejectAct(adminChatId,actId,String(update.reason || ""),workflowWebActor || undefined);
           }
 
           const {

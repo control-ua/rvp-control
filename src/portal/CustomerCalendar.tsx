@@ -39,7 +39,7 @@ export default function CustomerCalendar({ revision, onCreate, canCreate }: { re
   const events = data?.events || [];
   const visible = events.filter((e) => !day || e.calendar_day === day);
   const next = data?.next;
-  function changeMonth(value: string) { if (!value) return; setMonth(value); setPage(0); setDay(null); setData(null); }
+  function changeMonth(value: string) { if (!value) return; setMonth(value); setPage(0); setDay(null); }
   function openCalendar() { section.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }
   function details(v: Visit) { setSelected(v); }
   return <>
@@ -64,7 +64,7 @@ export default function CustomerCalendar({ revision, onCreate, canCreate }: { re
         </div>
         <div className="rpv-tabs" aria-label="Вигляд календаря"><button aria-pressed={view === "month"} className={view === "month" ? "active" : ""} onClick={() => setView("month")}><CalendarDays size={16}/>Місяць</button><button aria-pressed={view === "list"} className={view === "list" ? "active" : ""} onClick={() => { setView("list"); setDay(null); }}><List size={16}/>Список</button></div>
       </div>
-      <form className="rpv-calendar-search" onSubmit={(e) => { e.preventDefault(); setFilter(query.trim()); setPage(0); setDay(null); setData(null); }}>
+      <form className="rpv-calendar-search" onSubmit={(e) => { e.preventDefault(); setFilter(query.trim()); setPage(0); setDay(null); }}>
         <input aria-label="Фільтр календаря за мережею або кодом АЗК" placeholder="Мережа або код АЗК" maxLength={40} value={query} onChange={(e) => setQuery(e.target.value)} />
         <button disabled={busy}>Знайти</button>
         {filter && <button type="button" onClick={() => { setQuery(""); setFilter(""); setPage(0); setDay(null); }}>Скинути</button>}

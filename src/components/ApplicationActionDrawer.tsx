@@ -107,6 +107,8 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [hasProblem, setHasProblem] = useState(false);
+  const [awaitingAct, setAwaitingAct] = useState(false);
+  const [completionNotice, setCompletionNotice] = useState(false);
   const [problemComment, setProblemComment] = useState('');
   const [deadlineValue, setDeadlineValue] = useState(toLocalInputValue(application.deadline));
   const [commentText, setCommentText] = useState('');
@@ -140,6 +142,7 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
           createdAt: row.createdAt,
         })),
       );
+      setAwaitingAct(attention.awaitingAct);
       setHasProblem(attention.hasProblem);
       setProblemComment(attention.problemComment);
       setDeadlineValue(toLocalInputValue(attention.deadlineAt));
@@ -151,6 +154,7 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
   };
 
   useEffect(() => {
+    setCompletionNotice(false);
     setContractorId(application.contractorId || '');
     setDeadlineValue(toLocalInputValue(application.deadline));
     void loadExtra();
@@ -195,11 +199,8 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
   };
 
   const handleComplete = () => {
-    void runAction(
-      'complete',
-      async () => { await updateApplicationStatus(application.id, 'completed'); },
-      'Заявку виконано',
-    );
+    // Completion is committed by office act approval, never by a status toggle.
+    setCompletionNotice(true);
   };
 
   const handleDeadline = () => {
@@ -306,7 +307,7 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-mono text-sm font-bold text-blue-400">{application.number}</span>
-              <StatusBadge label={application.status} className={getApplicationStatusColor(application.status)} />
+              <StatusBadge label={awaitingAct ? 'Акт на перевірці' : application.status} className={getApplicationStatusColor(application.status)} />
               {hasProblem && (
                 <span className="rounded-full border border-rose-500/25 bg-rose-500/10 px-2 py-0.5 text-[11px] font-semibold text-rose-300">
                   ⚠ Проблема
@@ -354,7 +355,7 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   <button
                     onClick={handleStart}
-                    disabled={busy !== null || application.status === 'В роботі' || isFinished}
+                    disabled={busy !== null || application.status === 'В роботі' || awaitingAct || isFinished}
                     className="flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-2xl border border-blue-500/20 bg-blue-500/[0.07] text-xs font-semibold text-blue-300 disabled:opacity-35"
                   >
                     {busy === 'start' ? <Loader2 size={20} className="animate-spin" /> : <PlayCircle size={20} />}
@@ -366,7 +367,7 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
                     className="flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.07] text-xs font-semibold text-emerald-300 disabled:opacity-35"
                   >
                     {busy === 'complete' ? <Loader2 size={20} className="animate-spin" /> : <CheckCircle2 size={20} />}
-                    Виконана
+                    Завершити
                   </button>
                   {application.status === 'Скасована' ? (
                     <button
@@ -395,6 +396,13 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
                     Фото / файл
                   </button>
                 </div>
+                {completionNotice && (
+                  <div role="status" className="mt-3 rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-200">
+                    {awaitingAct
+                      ? 'Акт очікує перевірки офісом у розділі «Акти». Після підтвердження заявку буде виконано. Якщо потрібні виправлення — відхиліть акт із причиною.'
+                      : 'Для завершення потрібен акт. Підрядник надсилає його через «Завершити» в боті, а офіс підтверджує у розділі «Акти». До підтвердження заявка залишається в роботі; повертати її назад не потрібно.'}
+                  </div>
+                )}
               </section>
 
               <section className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">

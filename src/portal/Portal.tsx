@@ -238,11 +238,6 @@ function CustomerPortal() {
           {error}
         </p>
       )}
-      <CustomerCalendar
-        revision={orderRevision}
-        onCreate={(date) => { setCreateDate(date); setCreated(""); setCreating(true); }}
-        canCreate={!!data?.sites.length || !!site}
-      />
       <div className="rpv-stats">
         <div className="rpv-stat main">
           <Droplets />
@@ -322,6 +317,11 @@ function CustomerPortal() {
             + Додати об’єкт у боті
           </button>
         </aside>
+        <CustomerCalendar
+          revision={orderRevision}
+          onCreate={(date) => { setCreateDate(date); setCreated(""); setCreating(true); }}
+          canCreate={!!data?.sites.length || !!site}
+        />
         <section className="rpv-card rpv-details">
           {site ? (
             <>

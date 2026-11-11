@@ -27,6 +27,7 @@ const app = {
   address: site.address,
   status: "assigned",
   contractor_stage: "offered",
+  scheduled_at: "2026-11-18T00:00:00Z",
   deadline_at: null,
   actual_volume: null,
   updated_at: "2026-11-10T00:00:00Z",
@@ -45,12 +46,18 @@ const fetchReal = window.fetch.bind(window);
 window.fetch = async (input, init) => {
   if (!String(input).endsWith("/rpv-portal")) return fetchReal(input, init);
   const b = JSON.parse(String(init?.body));
+  if (b.action === "customer.calendar") {
+    const rows = [app, ...createdApps].map((a) => ({ ...a, calendar_day: a.scheduled_at.slice(0, 10), visit_at: a.scheduled_at, site_label: site.label, network: "WOG", site_code: "0013", date_kind: "scheduled", awaiting_act: false, published: false }));
+    const events = rows.filter((r) => r.calendar_day.startsWith(b.month) && (!b.query || `WOG 0013`.toLowerCase().includes(b.query.toLowerCase())));
+    return new Response(JSON.stringify({ events, more: false, next: rows[0], today: "2026-11-11", month: b.month }), { headers: { "Content-Type": "application/json" } });
+  }
   if (b.action === "customer.create") {
     const row = {
       ...app,
       id: b.request,
       application_number: "G-WEB001",
       description: b.work,
+      scheduled_at: b.date + "T00:00:00Z",
       status: "new",
       contractor_stage: "unassigned",
     };

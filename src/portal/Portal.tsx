@@ -25,6 +25,7 @@ import {
 } from "./api";
 import "./portal.css";
 import CreateApplication from "./CreateApplication";
+import CustomerCalendar from "./CustomerCalendar";
 export default function Portal() {
   const requested = new URLSearchParams(location.search).get("cabinet");
   const [role, setRole] = useState(
@@ -134,6 +135,7 @@ function CustomerPortal() {
     [ordersMore, setOrdersMore] = useState(false);
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState("");
+  const [createDate, setCreateDate] = useState<string>();
   const [orderRevision, setOrderRevision] = useState(0);
   const refresh = () => {
     setBusy(true);
@@ -199,6 +201,7 @@ function CustomerPortal() {
           disabled={!data?.sites.length && !site}
           onClick={() => {
             setCreated("");
+            setCreateDate(undefined);
             setCreating(true);
           }}
         >
@@ -214,6 +217,7 @@ function CustomerPortal() {
         <CreateApplication
           sites={data?.sites || []}
           selected={site}
+          initialDate={createDate}
           sitesMore={!!data?.sitesMore}
           onClose={() => setCreating(false)}
           onDone={(chosen, number) => {
@@ -232,6 +236,11 @@ function CustomerPortal() {
           {error}
         </p>
       )}
+      <CustomerCalendar
+        revision={orderRevision}
+        onCreate={(date) => { setCreateDate(date); setCreated(""); setCreating(true); }}
+        canCreate={!!data?.sites.length || !!site}
+      />
       <div className="rpv-stats">
         <div className="rpv-stat main">
           <Droplets />

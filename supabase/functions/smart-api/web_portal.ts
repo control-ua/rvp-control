@@ -1,4 +1,4 @@
-const PORTAL = "https://control-ua.github.io/rvp-control/";
+const PORTAL = "https://gidraservicedp-alt.github.io/rvp-control/";
 export const WEB_CABINET = "🌐 Відкрити вебкабінет";
 export async function handleWebPortal(
   update: any,

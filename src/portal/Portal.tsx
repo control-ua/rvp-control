@@ -27,6 +27,7 @@ import "./portal.css";
 import CreateApplication from "./CreateApplication";
 import CustomerCalendar from "./CustomerCalendar";
 import ServiceResult from "./ServiceResult";
+import ProEntry from "./ProEntry";
 export default function Portal() {
   const requested = new URLSearchParams(location.search).get("cabinet");
   const [role, setRole] = useState(
@@ -193,9 +194,12 @@ function CustomerPortal() {
           <h1>Вітаємо{data?.name ? `, ${data.name}` : ""}</h1>
           <p>Паспорти АЗК, підтверджені акти та обсяги відкачки.</p>
         </div>
-        <button onClick={refresh} disabled={busy}>
-          <RefreshCw size={17} /> Оновити
-        </button>
+        <div className="rpv-heading-actions">
+          <ProEntry />
+          <button onClick={refresh} disabled={busy}>
+            <RefreshCw size={17} /> Оновити
+          </button>
+        </div>
       </div>
       <div className="rpv-create-launch">
         <button

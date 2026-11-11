@@ -775,3 +775,25 @@
 .rpv-workspace > .rpv-calendar {
   margin-bottom: 0;
 }
+
+.rpv-heading-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.rpv-portal button.rpv-pro-entry {
+  color: #fff; border-color: #7792f9;
+  background: linear-gradient(115deg, #215bb4, #6944cc);
+  box-shadow: 0 0 0 3px #8094ff1a, 0 5px 20px #6559d638;
+  white-space: nowrap;
+}
+.rpv-portal button.rpv-pro-entry:hover { background: linear-gradient(115deg, #174b99, #5936bb); box-shadow: 0 0 0 4px #8094ff26, 0 5px 24px #6559d64d; }
+.rpv-pro-dialog { width: min(520px, calc(100% - 32px)); max-height: 88dvh; padding: 0; border: 1px solid #d7ddf5; border-radius: 22px; background: #fff; color: #183250; box-shadow: 0 24px 90px #102c5040; }
+.rpv-pro-dialog::backdrop { background: #102c5080; backdrop-filter: blur(4px); }
+.rpv-pro-content { padding: 28px; background: linear-gradient(155deg, #f0f1ff, #fff 60%); }
+.rpv-pro-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+.rpv-pro-badge { display: inline-flex; gap: 8px; align-items: center; color: #5741a4; font-weight: 800; }
+.rpv-pro-status { display: inline-block; border-radius: 20px; padding: 5px 10px; background: #e9e5fc; color: #5c439e; font-size: 12px; font-weight: 700; }
+.rpv-pro-dialog h2 { margin: 14px 0 12px; font-size: 25px; }
+.rpv-pro-dialog p, .rpv-pro-dialog li { font-size: 14px; line-height: 1.65; }
+.rpv-pro-dialog ul { padding-left: 22px; margin: 20px 0; }
+.rpv-pro-dialog li { margin: 8px 0; }
+.rpv-pro-note { color: #64748b; }
+.rpv-pro-content > button { width: 100%; margin-top: 12px; }
+@media (max-width: 600px) { .rpv-heading-actions { width: 100%; } .rpv-pro-content { padding: 22px; } }

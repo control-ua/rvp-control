@@ -4,19 +4,21 @@ export default function CreateApplication({
   sites,
   selected,
   sitesMore,
+  initialDate,
   onDone,
   onClose,
 }: {
   sites: Site[];
   selected: Site | null;
   sitesMore: boolean;
+  initialDate?: string;
   onDone: (site: Site, number: string) => void;
   onClose: () => void;
 }) {
   const [siteId, setSiteId] = useState(selected?.id || sites[0]?.id || "");
   const [work, setWork] = useState("Відкачка РПВ");
   const [date, setDate] = useState(
-    new Intl.DateTimeFormat("sv-SE", {
+    initialDate || new Intl.DateTimeFormat("sv-SE", {
       timeZone: "Europe/Kyiv",
       year: "numeric",
       month: "2-digit",

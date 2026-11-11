@@ -32,6 +32,7 @@ export async function handleWebPortal(
   const state = session.data?.state;
   const contractorMode = office && (
     state === "admin_contractor_mode" || state === "manager_message" ||
+      /^wf_(volume|date|note|upload|decline|problem):/.test(state || "") ||
     ["waiting_act:", "waiting_act_start:", "waiting_act_files:"].some(
       (prefix) => state?.startsWith(prefix),
     )

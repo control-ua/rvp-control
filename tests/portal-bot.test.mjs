@@ -4,7 +4,7 @@ import {
   handleWebPortal,
   WEB_CABINET,
 } from "../supabase/functions/smart-api/web_portal.ts";
-function setup(customer, contractor) {
+function setup(customer, contractor, session = null, sessionError = null) {
   const messages = [];
   return {
     messages,
@@ -19,8 +19,8 @@ function setup(customer, contractor) {
           },
           async maybeSingle() {
             return {
-              data: table === "customers" ? customer : contractor,
-              error: null,
+              data: table === "customers" ? customer : table === "contractors" ? contractor : session,
+              error: table === "bot_sessions" ? sessionError : null,
             };
           },
         };
@@ -73,4 +73,35 @@ test("multiple active roles and office use separate server-checked entries", asy
   assert.ok(rows[1][0].web_app);
   assert.equal(rows[2][0].web_app, undefined);
   assert.equal(rows[2][0].url, "https://gidraservicedp-alt.github.io/rvp-control/");
+});
+
+test("office user in contractor mode receives only their contractor Mini App", async () => {
+  for (const state of ["admin_contractor_mode", "manager_message", "waiting_act:123", "waiting_act_start:123", "waiting_act_files:123"]) {
+    const s = setup({status:"active",phone:"1"}, {status:"active",phone:"2"}, {state});
+    await handleWebPortal(update(WEB_CABINET), s.db, s.send, true);
+    const rows = s.messages[0].reply_markup.inline_keyboard;
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0][0].text, "Кабінет підрядника");
+    assert.equal(rows[0][0].web_app.url, "https://gidraservicedp-alt.github.io/rvp-control/?cabinet=contractor");
+    assert.equal(rows[0][0].url, undefined);
+  }
+});
+
+test("contractor mode without a phone requests contact instead of falling back to office", async () => {
+  const s = setup(null, {status:"active",phone:null}, {state:"admin_contractor_mode"});
+  await handleWebPortal(update(WEB_CABINET), s.db, s.send, true);
+  assert.equal(s.messages[0].reply_markup.inline_keyboard, undefined);
+  assert.equal(s.messages[0].reply_markup.keyboard[0][0].request_contact, true);
+});
+
+test("revoked contractor mode cannot use office or customer fallback", async () => {
+  const s = setup({status:"active",phone:"1"}, {status:"rejected",phone:"2"}, {state:"admin_contractor_mode"});
+  await handleWebPortal(update(), s.db, s.send, true);
+  assert.equal(s.messages[0].reply_markup, undefined);
+});
+
+test("failed mode lookup does not issue an office link", async () => {
+  const s = setup(null, null, null, {message:"lookup failed"});
+  await assert.rejects(handleWebPortal(update(), s.db, s.send, true));
+  assert.equal(s.messages.length, 0);
 });

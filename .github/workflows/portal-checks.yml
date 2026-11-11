@@ -21,4 +21,4 @@ jobs:
         env:
           VITE_SUPABASE_URL: https://example.supabase.co
           VITE_SUPABASE_ANON_KEY: ci-public-placeholder
-      - run: npx --yes deno@2.9.6 check supabase/functions/rpv-portal/index.ts
+      - run: npx --yes deno@2.9.6 check supabase/functions/rpv-portal/index.ts supabase/functions/smart-api/index.ts

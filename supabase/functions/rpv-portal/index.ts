@@ -107,7 +107,7 @@ async function dispatch(req: Request, b: any): Promise<any> {
   if (String(b.action || "").startsWith("office.")) {
     const admin = await office(
       req,
-      !["office.list", "office.sites", "office.applications"].includes(
+      !["office.list", "office.sites", "office.networks", "office.applications"].includes(
         b.action,
       ),
     );
@@ -137,33 +137,39 @@ async function dispatch(req: Request, b: any): Promise<any> {
         canManage: ["owner", "admin", "dispatcher"].includes(admin.role),
       };
     }
-    if (b.action === "office.sites") {
-      if (b.user !== undefined) {
-        const user = Number(b.user);
-        if (!Number.isSafeInteger(user) || user <= 0)
-          throw new PortalError(400, "Некоректний менеджер АЗК.");
-        const rows = list(
-          await db
-            .from("rpv_customer_visible_sites")
-            .select(sitesFields)
-            .eq("telegram_id", user)
-            .order("id")
-            .range(page(b.page) * 50, page(b.page) * 50 + 50),
-        );
-        return { sites: rows.slice(0, 50).map(site), more: rows.length > 50 };
+    if (b.action === "office.sites" || b.action === "office.networks") {
+      const table = b.user === undefined ? "rpv_customer_sites" : "rpv_customer_visible_sites";
+      const user = b.user === undefined ? undefined : Number(b.user);
+      if (user !== undefined && (!Number.isSafeInteger(user) || user <= 0))
+        throw new PortalError(400, "Некоректний менеджер АЗК.");
+      if (b.action === "office.networks") {
+        const networks = new Set<string>();
+        let query = db.from(table).select("passport_network")
+          .not("passport_network", "is", null).order("passport_network").order("id");
+        if (user !== undefined) query = query.eq("telegram_id", user);
+        for (let offset = 0; ; offset += 1000) {
+          const rows = list(await query.range(offset, offset + 999));
+          for (const row of rows) {
+            const name = String(row.passport_network || "").trim().toUpperCase();
+            if (name) networks.add(name);
+          }
+          if (rows.length < 1000) break;
+        }
+        return { networks: [...networks].sort((a, b) => a.localeCompare(b, "uk")) };
       }
+      let query = db.from(table).select(sitesFields);
+      if (user !== undefined) query = query.eq("telegram_id", user);
       const q = String(b.query || "").trim();
-      if (!/^[A-Za-z0-9]{1,30}$/.test(q))
+      const network = String(b.network || "").trim();
+      if (network && !/^[A-Za-z0-9]{1,30}$/.test(network))
+        throw new PortalError(400, "Оберіть мережу зі списку.");
+      if (q && !/^[A-Za-z0-9]{1,30}$/.test(q))
         throw new PortalError(400, "Введіть мережу латиницею або код АЗК.");
+      if (!q && !network && b.user === undefined) return { sites: [], more: false };
+      if (network) query = query.ilike("passport_network", network);
+      if (q) query = query.ilike(/^\d+$/.test(q) ? "passport_azk_code" : "passport_network", `%${q}%`);
       const rows = list(
-        await db
-          .from("rpv_customer_sites")
-          .select(sitesFields)
-          .ilike(
-            /^\d+$/.test(q) ? "passport_azk_code" : "passport_network",
-            `%${q}%`,
-          )
-          .order("id")
+        await query.order("passport_azk_code").order("id")
           .range(page(b.page) * 50, page(b.page) * 50 + 50),
       );
       return { sites: rows.slice(0, 50).map(site), more: rows.length > 50 };

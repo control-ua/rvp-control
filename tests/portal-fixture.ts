@@ -91,16 +91,21 @@ window.fetch = async (input, init) => {
         updated_at: "2026-11-10T00:00:00Z",
       },
     ];
+    const allSites = [site,
+      { ...site, id: "40000000-0000-0000-0000-000000000002", code: "0014", label: "АЗК WOG 0014", capacity_m3: null },
+      { ...site, id: "40000000-0000-0000-0000-000000000003", passport_network: "UPG", label: "АЗК UPG 0013", address: "м. Дніпро, вул. Прикладна, 21" },
+    ];
+    const accessible = b.user === 124 ? [] : allSites;
+    const rows = accessible.filter((s) => (!b.network || s.passport_network === b.network) &&
+      (!b.query || (/^\d+$/.test(b.query) ? s.code : s.passport_network).toLowerCase().includes(b.query.toLowerCase())));
     return new Response(
       JSON.stringify(
         b.action === "office.list"
           ? { customers, more: false, canManage: true }
+          : b.action === "office.networks"
+            ? { networks: [...new Set(accessible.map((s) => s.passport_network))].sort() }
           : b.action === "office.sites"
-            ? b.user === 124
-              ? { sites: [], more: false }
-              : b.user === 123 && b.page === 1
-                ? { sites: [{ ...site, id: "40000000-0000-0000-0000-000000000002", code: "0014", label: "АЗК WOG 0014", capacity_m3: null }], more: false }
-                : { sites: [site], more: b.user === 123 }
+            ? { sites: rows.slice(b.page || 0, (b.page || 0) + 1), more: (b.page || 0) + 1 < rows.length }
             : b.action === "office.applications"
               ? {
                   applications: [{ ...app, customer_site_id: null }],

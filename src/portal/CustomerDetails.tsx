@@ -36,6 +36,9 @@ export default function CustomerDetails({ customer, onBack }: { customer: Custom
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
   const [selected, setSelected] = useState<Site | null>(null);
+  const [network, setNetwork] = useState("");
+  const [networks, setNetworks] = useState<string[]>([]);
+  const [networksError, setNetworksError] = useState("");
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => { if (!selected) heading.current?.focus(); }, [selected]);
   useEffect(() => {
@@ -44,12 +47,20 @@ export default function CustomerDetails({ customer, onBack }: { customer: Custom
     setError("");
     setSites([]);
     setMore(false);
-    portal<{ sites: Site[]; more: boolean }>("office.sites", { user: customer.telegram_id, page })
+    portal<{ sites: Site[]; more: boolean }>("office.sites", { user: customer.telegram_id, page, network })
       .then((r) => { if (active) { setSites(r.sites); setMore(r.more); } })
       .catch((e) => { if (active) setError(e.message); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [customer.telegram_id, page, revision]);
+  }, [customer.telegram_id, page, network, revision]);
+  useEffect(() => {
+    let active = true;
+    setNetworksError("");
+    portal<{ networks: string[] }>("office.networks", { user: customer.telegram_id })
+      .then((r) => { if (active) setNetworks(r.networks); })
+      .catch((e) => { if (active) { setNetworksError(e.message); setNetworks([]); } });
+    return () => { active = false; };
+  }, [customer.telegram_id, revision]);
   const name = [customer.first_name, customer.last_name].filter(Boolean).join(" ") || "Без імені";
   return (
     <div className="rpv-office">
@@ -60,9 +71,17 @@ export default function CustomerDetails({ customer, onBack }: { customer: Custom
           <h1 id="rpv-customer-title" ref={heading} tabIndex={-1}>{name}</h1>
           <p><a href={`tel:${customer.phone}`}>{customer.phone}</a></p>
           <h2 className="rpv-customer-sites-title">Об’єкти та паспорти АЗК</h2>
+          <label className="rpv-network-filter">
+            Мережа АЗК
+            <select aria-label="Мережа АЗК" value={network} onChange={(e) => { setNetwork(e.target.value); setPage(0); setSites([]); setMore(false); }}>
+              <option value="">Усі мережі</option>
+              {networks.map((name) => <option key={name} value={name}>{name}</option>)}
+            </select>
+          </label>
+          {networksError && <p className="rpv-error" role="alert">{networksError}</p>}
           {loading && <p role="status">Завантажуємо об’єкти…</p>}
           {error && <p className="rpv-error" role="alert">{error}</p>}
-          {!loading && !error && !sites.length && <p>Закріплених об’єктів поки немає.</p>}
+          {!loading && !error && !sites.length && <p>{network ? "АЗК цієї мережі у менеджера немає." : "Закріплених об’єктів поки немає."}</p>}
           {sites.map((s) => (
             <article key={s.id}>
               <h2><button className="rpv-card-open" onClick={() => setSelected(s)}>

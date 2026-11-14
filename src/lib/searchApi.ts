@@ -51,8 +51,8 @@ export async function globalSearch(query: string): Promise<SearchResult[]> {
     results.push({
       id: row.id,
       type: 'act',
-      title: `Акт ${row.act_number ?? '—'}`,
-      subtitle: `Акт ${row.act_number ?? '—'}`,
+      title: `Первинний акт ${row.act_number ?? '—'}`,
+      subtitle: `Первинний акт ${row.act_number ?? '—'}`,
       number: row.act_number ?? '—',
     });
   }

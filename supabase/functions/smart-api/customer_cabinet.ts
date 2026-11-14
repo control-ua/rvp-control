@@ -1,9 +1,12 @@
 import { ukraineCities } from "./ukraine_cities.ts";
+import { resolveActFiles } from "./act_files.ts";
 
 export const CUSTOMER_ADMIN_MENU = "👤 Замовники";
 const OFFICE_SITE_SEARCH_PROMPT = "Введіть назву мережі латиницею (наприклад WOG) або код АЗК (наприклад 13).";
 const SITE_FIELDS = "id,label,address,capacity_m3,site_key,passport_network,passport_city_code,passport_azk_code";
-const CABINET = "Кабінет замовника";
+const CABINET = "Кабінет менеджера АЗК";
+// Temporary registration mode: restore true to require office contact approval.
+const REQUIRE_CONTACT_APPROVAL = false;
 const CONTACT = "Надіслати номер телефону";
 const OBJECTS = "Мої об’єкти";
 const ACTS = "Мої акти";
@@ -143,16 +146,24 @@ export function makeCustomerCabinet(o: Options) {
     return rows.length > 0;
   }
 
-  async function openCabinet(id: number) {
-    const user = await profile(id);
+  async function openCabinet(id: number): Promise<unknown> {
+    let user = await profile(id);
     if (!user?.phone) return await send(id,"Для входу до кабінету надішліть свій номер телефону.",CONTACT_MENU);
-    if (user.status === "active") {
-      if (await hasAccess(id)) return await send(id,"Кабінет замовника",MENU);
+    let autoActivated = false;
+    if (!REQUIRE_CONTACT_APPROVAL && user.status === "pending" && /^\+[1-9]\d{6,14}$/.test(user.phone)) {
+      requireData(await db.from("customers").update({status:"active",updated_at:new Date().toISOString()})
+        .eq("telegram_id",id).eq("status","pending").eq("phone",user.phone).select("telegram_id"));
+      user = await profile(id);
+      autoActivated = user?.status === "active";
+    }
+    if (user?.status === "active") {
+      if (autoActivated && !(await hasAccess(id))) return await startPassport(id);
+      if (await hasAccess(id)) return await send(id,"Кабінет менеджера АЗК",MENU);
       return await send(id,"Контакт підтверджено. Заповніть паспорт свого об’єкта, щоб продовжити.",{
         keyboard:[[{text:FILL_PASSPORT}]],resize_keyboard:true,
       });
     }
-    const status = user.status === "rejected"
+    const status = user?.status === "rejected"
       ? "Офіс відхилив запит на підтвердження контакту. Зверніться до офісу, щоб уточнити причину."
       : "Очікуємо підтвердження контакту від офісу.";
     return await send(id,status,{remove_keyboard:true});
@@ -169,22 +180,26 @@ export function makeCustomerCabinet(o: Options) {
     const values = {phone:normalized, first_name:user.first_name || null,
       last_name:user.last_name || null, username:user.username || null};
     const inserted = existing
-      ? requireData(await db.from("customers").update({...values,updated_at:new Date().toISOString()})
+      ? requireData(await db.from("customers").update({...values,status:REQUIRE_CONTACT_APPROVAL ? "pending" : "active",updated_at:new Date().toISOString()})
           .eq("telegram_id",id).eq("status","pending").is("phone",null).select("telegram_id"))
       : requireData(await db.from("customers").upsert({
-          ...values, telegram_id:id, status:"pending",
+          ...values, telegram_id:id, status:REQUIRE_CONTACT_APPROVAL ? "pending" : "active",
         },{onConflict:"telegram_id",ignoreDuplicates:true}).select("telegram_id"));
     if (inserted.length) {
       await o.refreshAdmins();
       const name = [user.first_name,user.last_name].filter(Boolean).join(" ");
-      await Promise.all(o.adminIds().map(admin => send(admin,
-        `Запит на доступ до кабінету замовника\n${name}\n${normalized}\nTelegram ID ${id}`,
-        {inline_keyboard:[[button("Переглянути запит",`rpvo:u:${id}`)]]})));
+      await Promise.allSettled(o.adminIds().map(admin => send(admin,
+        `${REQUIRE_CONTACT_APPROVAL ? "Запит на доступ до кабінету менеджера АЗК" : "Новий менеджер АЗК · автоматична реєстрація"}\n${name}\n${normalized}\nTelegram ID ${id}`,
+        REQUIRE_CONTACT_APPROVAL ? {inline_keyboard:[[button("Переглянути запит",`rpvo:u:${id}`)]]} : undefined)));
+    }
+    const registered = await profile(id);
+    if (!REQUIRE_CONTACT_APPROVAL && registered?.status === "active" && registered.phone && !(await hasAccess(id))) {
+      return await startPassport(id);
     }
     return await openCabinet(id);
   }
 
-  async function startPassport(id: number) {
+  async function startPassport(id: number): Promise<unknown> {
     const user = await profile(id);
     if (user?.status !== "active" || !user.phone) return await openCabinet(id);
     const draft = {id:crypto.randomUUID().replaceAll("-","")};
@@ -316,15 +331,19 @@ export function makeCustomerCabinet(o: Options) {
     const row = requireData(await db.from("rpv_customer_visible_acts").select("*")
       .eq("telegram_id",id).eq("act_id",act).maybeSingle());
     if (!row) return await send(id,"Акт недоступний.",MENU);
-    const doc = requireData(await db.from("acts").select("telegram_file_id,file_type").eq("id",act).eq("status","approved").maybeSingle());
-    if (!doc?.telegram_file_id) return await send(id,"Файл акта недоступний.",MENU);
+    const doc = requireData(await db.from("acts").select("id,telegram_file_id,file_type,file_name").eq("id",act).eq("status","approved").maybeSingle());
+    if (!doc) return await send(id,"Файл акта недоступний.",MENU);
+    const files = await resolveActFiles(db, doc);
+    if (!files.length) return await send(id,"Файл акта недоступний.",MENU);
     const caption = `${row.act_number} · ${row.site_label}\n${displayDate(row.work_date)} · Заявка № ${row.application_number || "—"}` +
       (row.pumped_m3 == null ? "" : `\nВідкачано ${amount(row.pumped_m3)} м³`);
-    const photo = doc.file_type === "photo";
+    for (const file of files) {
+    const photo = file.file_type === "photo";
     const reply = await o.telegram(photo ? "sendPhoto" : "sendDocument",{
-      chat_id:id,[photo ? "photo" : "document"]:doc.telegram_file_id,caption,protect_content:true,
+      chat_id:id,[photo ? "photo" : "document"]:file.source,caption,protect_content:true,
     });
     if (!reply?.ok) await send(id,"Не вдалося відкрити файл акта.",MENU);
+    }
   }
 
   async function total(id: number, month: string) {
@@ -594,7 +613,7 @@ export function makeCustomerCabinet(o: Options) {
       if (row.pumped_m3 !== null && row.work_date.slice(0,7)===kyivDate().slice(0,7)) return await notify(id,row);
       return await send(id,"Акт опубліковано.");
     }
-    await send(id,"Кабінет замовника · команди офісу\n\n/rpv_revoke Telegram_ID тип код\n/rpv_act номер_акта код_об’єкта РРРР-ММ-ДД обсяг");
+    await send(id,"Кабінет менеджера АЗК · команди офісу\n\n/rpv_revoke Telegram_ID тип код\n/rpv_act номер_акта код_об’єкта РРРР-ММ-ДД обсяг");
   }
 
   async function handle(update: any, verified: boolean) {
@@ -603,7 +622,8 @@ export function makeCustomerCabinet(o: Options) {
     const user = callback?.from ?? message?.from;
     if (message?.chat?.type !== "private" || !user?.id || message.chat.id !== user.id) return false;
     const id = user.id;
-    const text = callback ? "" : String(message.text || "").trim();
+    const inputText = callback ? "" : String(message.text || "").trim();
+    const text = inputText === "Кабінет замовника" ? CABINET : inputText;
     const command = text.split(/\s+/,1)[0];
     const args = text.slice(command.length).trim();
     const office = COMMANDS.has(command);
@@ -629,7 +649,7 @@ export function makeCustomerCabinet(o: Options) {
     }
     if (callback && !cabinetAction) return false;
     if (office) { await admin(id,command,args); return true; }
-    if (text === "/start" || text === "Кабінет підрядника" || (!callback && !text && !message.contact)) return false;
+    if (text === "/start" || (text === "Кабінет виконавця" || text === "Кабінет підрядника") || (!callback && !text && !message.contact)) return false;
     const state = (await o.getSession(id))?.state;
     const draft: PassportDraft | null = typeof state === "string" && state.startsWith(PASSPORT_PREFIX)
       ? JSON.parse(state.slice(PASSPORT_PREFIX.length)) : null;
@@ -641,6 +661,10 @@ export function makeCustomerCabinet(o: Options) {
     if (cabinetAction) await o.telegram("answerCallbackQuery",{callback_query_id:callback.id});
     if (continuing) {
       const user = await profile(id);
+      if (!REQUIRE_CONTACT_APPROVAL && user?.status === "pending" && user.phone) {
+        await openCabinet(id);
+        return true;
+      }
       if (user?.status === "active" && user.phone) {
         if (draft) await showPassportStep(id,draft);
         else if (await hasAccess(id)) {
@@ -685,4 +709,3 @@ export function makeCustomerCabinet(o: Options) {
 
   return {handle};
 }
-

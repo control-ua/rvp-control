@@ -1,4 +1,5 @@
 import { makeServiceWorkflow, authorizeServiceOffice } from "./service_workflow.ts";
+import { resolveActFiles } from "./act_files.ts";
 import { notifyPublished } from "./workflow_notifications.ts";
 import { handleWebPortal } from './web_portal.ts';
 import { CUSTOMER_ADMIN_MENU, makeCustomerCabinet } from "./customer_cabinet.ts";
@@ -472,8 +473,8 @@ function departureLocationMenu() {
   };
 }
 
-const CUSTOMER_CABINET = "Кабінет замовника";
-const CONTRACTOR_CABINET = "Кабінет підрядника";
+const CUSTOMER_CABINET = "Кабінет менеджера АЗК";
+const CONTRACTOR_CABINET = "Кабінет виконавця";
 const CHOOSE_CABINET = "Оберіть кабінет";
 
 function cabinetMenu() {
@@ -3902,77 +3903,19 @@ async function openAct(
 
   if(act.service_report) caption += `\n\n📊 Фактичний результат: ${act.service_report.volume===null?"без відкачки":`${act.service_report.volume} м³`}\n📅 Дата виконання: ${escapeHtml(act.service_report.work_date)}\n${escapeHtml(act.service_report.notes||"")}`;
 
-  if (
-    act.file_type ===
-    "document"
-  ) {
-    await telegram(
-      "sendDocument",
-      {
-        chat_id:
-          chatId,
-
-        document:
-          act.telegram_file_id,
-
-        caption,
-
-        parse_mode:
-          "HTML",
-      },
-    );
-  } else {
-    await telegram(
-      "sendPhoto",
-      {
-        chat_id:
-          chatId,
-
-        photo:
-          act.telegram_file_id,
-
-        caption,
-
-        parse_mode:
-          "HTML",
-      },
-    );
+  const files = await resolveActFiles(supabase, act);
+  if (!files.length) {
+    await sendMessage(chatId, "Файл акта недоступний.");
+    return;
   }
-
-  const { data: extraFiles } = await supabase
-    .from("act_files")
-    .select("telegram_file_id,file_type,file_name")
-    .eq("act_id", act.id)
-    .order("created_at", { ascending: true });
-
-  if (extraFiles && extraFiles.length > 1) {
-    let fileIndex = 0;
-    for (const f of extraFiles) {
-      fileIndex++;
-      // Перший файл уже відправлено з таблиці acts.
-      if (
-        f.telegram_file_id === act.telegram_file_id
-      ) {
-        continue;
-      }
-
-      const extraCaption =
-        `📎 Додатковий файл ${fileIndex}/${extraFiles.length}`;
-
-      if (f.file_type === "document") {
-        await telegram("sendDocument", {
-          chat_id: chatId,
-          document: f.telegram_file_id,
-          caption: extraCaption,
-        });
-      } else {
-        await telegram("sendPhoto", {
-          chat_id: chatId,
-          photo: f.telegram_file_id,
-          caption: extraCaption,
-        });
-      }
-    }
+  for (const [index, file] of files.entries()) {
+    const photo = file.file_type === "photo";
+    await telegram(photo ? "sendPhoto" : "sendDocument", {
+      chat_id: chatId,
+      [photo ? "photo" : "document"]: file.source,
+      caption: index === 0 ? caption : `📎 Первинний акт · файл ${index + 1}/${files.length}`,
+      parse_mode: "HTML",
+    });
   }
 
   if (
@@ -10180,7 +10123,7 @@ async function handleMessage(
 
     await sendMessage(
       chatId,
-      "👷 <b>Кабінет підрядника</b>\n━━━━━━━━━━━━━━━━\n\n" +
+      "👷 <b>Кабінет виконавця</b>\n━━━━━━━━━━━━━━━━\n\n" +
         "Ви працюєте в режимі підрядника.\n" +
         "Для повернення натисніть «👑 Адмін панель».",
       mainMenu(user.id),
@@ -11414,7 +11357,7 @@ async function handleMessage(
 
       await sendMessage(
         chatId,
-        "👷 <b>Кабінет підрядника</b>\n━━━━━━━━━━━━━━━━",
+        "👷 <b>Кабінет виконавця</b>\n━━━━━━━━━━━━━━━━",
         mainMenu(user.id),
       );
 
@@ -11500,17 +11443,17 @@ async function handleMessage(
   const choosingCabinet = cabinetState === "choosing_cabinet";
   const inCustomerCabinet = cabinetState === "customer_cabinet";
   const waitingForContractorPhone = cabinetState === "contractor_phone";
-  const openingContractorCabinet = text === CONTRACTOR_CABINET &&
+  const openingContractorCabinet = (text === CONTRACTOR_CABINET || text === "Кабінет підрядника") &&
     (choosingCabinet || inCustomerCabinet || waitingForContractorPhone);
 
   if ((choosingCabinet || inCustomerCabinet) && !openingContractorCabinet) {
-    if (text === CUSTOMER_CABINET && !(await setSession(user.id, "customer_cabinet"))) {
+    if ((text === CUSTOMER_CABINET || text === "Кабінет замовника") && !(await setSession(user.id, "customer_cabinet"))) {
       await sendMessage(chatId, "Не вдалося вибрати кабінет. Спробуйте ще раз.", cabinetMenu());
       return;
     }
 
-    const response = text === CUSTOMER_CABINET || inCustomerCabinet
-      ? "Ви обрали кабінет замовника. Кабінет ще готується."
+    const response = (text === CUSTOMER_CABINET || text === "Кабінет замовника") || inCustomerCabinet
+      ? "Ви обрали кабінет менеджера АЗК. Кабінет ще готується."
       : CHOOSE_CABINET;
     await sendMessage(chatId, response, cabinetMenu());
     return;
@@ -11796,7 +11739,7 @@ async function handleMessage(
           user.first_name ||
           "користувач",
       )}</b>!\n\n` +
-        "👷 <b>Кабінет підрядника</b>\n" +
+        "👷 <b>Кабінет виконавця</b>\n" +
         "━━━━━━━━━━━━━━━━\n" +
         "Оберіть потрібний розділ 👇",
       mainMenu(user.id),
@@ -13489,4 +13432,3 @@ Deno.serve(
     }
   },
 );
-

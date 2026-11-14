@@ -75,6 +75,9 @@ const acts = [
     act_files: [],
   },
 ];
+const primaryFiles = [{id:'70000000-0000-0000-0000-000000000001',act_id:acts[0].id,
+ application_id:apps[3].id,storage_path:`${apps[3].id}/act/demo.pdf`,
+ telegram_file_id:null,file_type:'document',file_name:'Первинний акт.pdf',category:'act',created_at:date()}];
 const customer = {
   telegram_id: 123,
   first_name: "Тестовий",
@@ -98,6 +101,13 @@ window.fetch = async (input, init) => {
         : input.url,
     location.href,
   );
+  if (url.pathname.endsWith('/smart-api')) {
+    const b=JSON.parse(String(init?.body));
+    if (b.action==='approve_act_from_web' && b.act_id===acts[0].id) {
+      acts[0].status='approved';apps[3].status='completed';apps[3].awaiting_act=false;
+      return json({ok:true});
+    }
+  }
   if (url.pathname.endsWith("/rpv-portal")) {
     const b = JSON.parse(String(init?.body));
     if (b.action === "office.networks")
@@ -125,6 +135,7 @@ window.fetch = async (input, init) => {
     const table = url.pathname.split("/").pop(),
       select = url.searchParams.get("select") || "";
     let rows: any[] =
+      table === 'application_files' || table === 'act_files' ? [...primaryFiles] :
       table === "applications"
         ? [...apps]
         : table === "acts"
@@ -176,6 +187,7 @@ const session: any = {
   access_token: "local-fixture",
   user: { id: "local-fixture", email: "demo@example.test" },
 };
+supabase.storage.from = (() => ({createSignedUrl:async()=>({data:{signedUrl:'data:application/pdf;base64,JVBERi0xLjQK'},error:null})})) as any;
 supabase.auth.getSession = async () => ({ data: { session }, error: null });
 supabase.auth.onAuthStateChange = (() => ({
   data: { subscription: { unsubscribe() {} } },

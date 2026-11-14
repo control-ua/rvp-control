@@ -81,7 +81,7 @@ test("office user in contractor mode receives only their contractor Mini App", a
     await handleWebPortal(update(WEB_CABINET), s.db, s.send, true);
     const rows = s.messages[0].reply_markup.inline_keyboard;
     assert.equal(rows.length, 1);
-    assert.equal(rows[0][0].text, "Кабінет підрядника");
+    assert.equal(rows[0][0].text, "Кабінет виконавця");
     assert.equal(rows[0][0].web_app.url, "https://gidraservicedp-alt.github.io/rvp-control/?cabinet=contractor");
     assert.equal(rows[0][0].url, undefined);
   }

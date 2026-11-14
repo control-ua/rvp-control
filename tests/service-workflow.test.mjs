@@ -74,4 +74,51 @@ assert.equal((await db.query('select awaiting_act from applications')).rows[0].a
 await report(12);const corrected='60000000-0000-0000-0000-000000000002';await attach(corrected,'new-photo');
 assert.equal((await db.query("select count(*)::int n from acts where status='pending'")).rows[0].n,1);
 await db.exec("update contractors set status='rejected' where telegram_id=123");await assert.rejects(report(12),e=>e.code==='42501');
+
+// Web uploads must enter the same act registry before the office can complete work.
+const appFileMigration=await fs.readFile(new URL('../supabase/migrations/20260907122556_create_application_files_comments_automation_roles.sql',import.meta.url),'utf8');
+const appFileTable=appFileMigration.match(/CREATE TABLE IF NOT EXISTS public\.application_files[\s\S]*?\n\);/)[0];
+await db.exec(`create schema storage;create table storage.objects(id uuid default gen_random_uuid(),bucket_id text,name text);
+${appFileTable}
+grant select,insert,update,delete on application_files,act_files to authenticated;
+grant select,insert,update,delete on application_files,act_files,storage.objects to service_role;
+grant usage on schema storage to authenticated,service_role;
+grant select,update,delete on storage.objects to authenticated;
+alter table storage.objects enable row level security;
+create policy office_storage on storage.objects for all to authenticated using(true) with check(true);`);
+const webApp='30000000-0000-0000-0000-000000000002',webFile='70000000-0000-0000-0000-000000000001';
+const path=`${webApp}/act/original.png`;
+await db.exec(`insert into applications(id,contractor_id,application_number,title,status) values('${webApp}','${c2}','G-WEB','Web primary act','in_progress');
+insert into storage.objects(bucket_id,name) values('application-media','${path}');
+insert into application_files(id,application_id,storage_path,category,file_name,file_type,uploaded_by) values('${webFile}','${webApp}','${path}','act','original.png','image/png','${owner}');`);
+await db.exec(await fs.readFile(new URL('../supabase/migrations/20261114182856_primary_act_registry.sql',import.meta.url),'utf8'));
+const registered=(await db.query('select * from acts where application_id=$1',[webApp])).rows[0];
+assert.equal(registered.status,'pending');assert.equal(registered.service_report,null);
+assert.equal((await db.query('select status from applications where id=$1',[webApp])).rows[0].status,'in_progress');
+assert.equal((await db.query('select storage_path from act_files where application_file_id=$1',[webFile])).rows[0].storage_path,path);
+await service('select rpv_register_primary_file($1)',[webFile]);
+assert.equal((await db.query('select count(*)::int n from act_files where application_file_id=$1',[webFile])).rows[0].n,1);
+const secondPath=`${webApp}/act/page2.pdf`;
+await db.query("insert into storage.objects(bucket_id,name) values('application-media',$1)",[secondPath]);
+const insertSecond=`insert into application_files(application_id,storage_path,category,file_name,file_type,uploaded_by) values('${webApp}','${secondPath}','act','page2.pdf','application/pdf','${owner}')`;
+await assert.rejects(asOffice(viewer,insertSecond),e=>e.code==='42501');
+await assert.rejects(asOffice(accountant,insertSecond),e=>e.code==='42501');
+await asOffice(dispatcher,insertSecond);
+assert.equal((await db.query('select count(*)::int n from acts where application_id=$1',[webApp])).rows[0].n,1);
+assert.equal((await db.query('select count(*)::int n from act_files where act_id=$1',[registered.id])).rows[0].n,2);
+await assert.rejects(asOffice(owner,insertSecond.replace(secondPath,'foreign/act.pdf')),e=>e.code==='22023');
+// Protected private originals cannot be deleted/overwritten by a browser client.
+await asOffice(owner,`delete from storage.objects where name='${path}'`);
+await asOffice(owner,`update storage.objects set name='lost' where name='${path}'`);
+assert.equal((await db.query('select count(*)::int n from storage.objects where name=$1',[path])).rows[0].n,1);
+const reviewed=(await service('select rpv_service_review($1,$2,$3) r',[owner,registered.id,'approved']))[0].r;
+assert.equal(reviewed.changed,true);
+const completed=(await db.query('select * from applications where id=$1',[webApp])).rows[0];
+assert.equal(completed.status,'completed');assert.equal(completed.awaiting_act,false);
+assert.equal(completed.actual_volume,null);assert.equal(completed.payout_status,'pending');
+assert.equal((await db.query('select count(*)::int n from work_history where application_id=$1',[webApp])).rows[0].n,1);
+assert.equal((await service('select rpv_service_review($1,$2,$3) r',[owner,registered.id,'approved']))[0].r.changed,false);
+await assert.rejects(asOffice(owner,insertSecond),e=>e.code==='40001');
+assert.equal((await db.query('select count(*)::int n from act_files where act_id=$1',[registered.id])).rows[0].n,2);
+console.log('PASS: uploaded act backfill, atomic registration, roles, path ownership, multiple pages, completion/history, idempotency, private original retention.');
 console.log('PASS: complete workflow, ownership, stale writes, state order, reports/files, atomic rollback, publication/history idempotency, rejection/correction, revocation and office role boundaries.');await db.close();

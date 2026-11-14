@@ -119,7 +119,8 @@ export async function downloadAct(act: Act) {
     url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `Акт-${act.act_number || act.work_date}`;
+  const name = response.headers.get('Content-Disposition')?.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  a.download = name ? decodeURIComponent(name) : `Акт-${act.act_number || act.work_date}`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 }

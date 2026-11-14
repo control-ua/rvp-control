@@ -104,6 +104,13 @@ const customer = {
   username: null,
   updated_at: date(),
 };
+const passportWithContacts = (target: typeof site) => ({
+  ...target,
+  contacts: target.id !== sid || qaParams.get('contacts') === 'empty' ? [] : [
+    { ...customer, username: 'demo_azk_manager' },
+    ...(qaParams.get('contacts') === 'multiple' ? [{ ...customer, telegram_id: 124, first_name: 'Другий', last_name: 'Тестовий менеджер об’єкта' }] : []),
+  ],
+});
 const json = (v: unknown) =>
   new Response(JSON.stringify(v), {
     headers: { "Content-Type": "application/json" },
@@ -131,14 +138,14 @@ window.fetch = async (input, init) => {
     if (b.action === "office.networks")
       return json({ networks: ["UPG", "WOG"] });
     if (b.action === "office.site")
-      return json({ site: b.site === sid ? site : other });
+      return json({ site: passportWithContacts(b.site === sid ? site : other) });
     if (b.action === "office.site_history") {
       const target=b.site===other.id?other:site;
       const all=apps.filter(a=>a.customer_site_id===target.id).map(a=>({...a,
         acts:acts.filter(act=>act.application_id===a.id),
         work_history:a.status==='completed'?[{completed_at:date(-6)}]:[],
       }));
-      return json({site:target,applications:all.slice((b.page||0)*50,(b.page||0)*50+50),total:all.length,more:false});
+      return json({site:passportWithContacts(target),applications:all.slice((b.page||0)*50,(b.page||0)*50+50),total:all.length,more:false});
     }
     if (b.action === "office.sites")
       return json({

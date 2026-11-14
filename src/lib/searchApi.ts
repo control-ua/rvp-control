@@ -2,7 +2,7 @@ import { supabase } from '@/lib/supabase';
 import type { SearchResult } from '@/types';
 
 export async function globalSearch(query: string): Promise<SearchResult[]> {
-  const q = query.trim().toLowerCase();
+  const q = query.trim().toLowerCase().replace(/[,%_()*\\"']/g, ' ').replace(/\s+/g, ' ').trim();
   if (q.length < 2) return [];
 
   const [appResult, contractorResult, actResult] = await Promise.all([
@@ -23,6 +23,7 @@ export async function globalSearch(query: string): Promise<SearchResult[]> {
       .limit(5),
   ]);
 
+  if (appResult.error || contractorResult.error || actResult.error) throw new Error('Пошук недоступний.');
   const results: SearchResult[] = [];
 
   for (const row of (appResult.data ?? []) as unknown as { id: string; application_number: string | null; title: string; address: string | null; azk_code: string | null; status: string }[]) {

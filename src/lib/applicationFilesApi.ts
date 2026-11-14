@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { telegramFileUrl } from '@/lib/actsApi';
 
-export type ApplicationMediaCategory = 'before' | 'after' | 'document' | 'other';
+export type ApplicationMediaCategory = 'before' | 'after' | 'act' | 'receipt' | 'other';
 
 export interface ApplicationFile {
   id: string;
@@ -29,6 +29,7 @@ interface FileRow {
 }
 
 const BUCKET = 'application-media';
+const PRIMARY_ACT_CATEGORY: ApplicationMediaCategory = 'act';
 
 function sanitizeFileName(fileName: string) {
   return fileName
@@ -85,7 +86,6 @@ export async function fetchApplicationFiles(
 export async function uploadApplicationFile(input: {
   applicationId: string;
   file: File;
-  category: ApplicationMediaCategory;
 }): Promise<void> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error('Сесія завершилась. Увійдіть знову.');
@@ -95,7 +95,7 @@ export async function uploadApplicationFile(input: {
   }
 
   const safeName = sanitizeFileName(input.file.name);
-  const storagePath = `${input.applicationId}/${input.category}/${crypto.randomUUID()}-${safeName}`;
+  const storagePath = `${input.applicationId}/${PRIMARY_ACT_CATEGORY}/${crypto.randomUUID()}-${safeName}`;
 
   const { error: uploadError } = await supabase.storage
     .from(BUCKET)
@@ -117,7 +117,7 @@ export async function uploadApplicationFile(input: {
       file_type: input.file.type || 'application/octet-stream',
       telegram_file_id: null,
       storage_path: storagePath,
-      category: input.category,
+      category: PRIMARY_ACT_CATEGORY,
       uploaded_by: session.user.id,
     });
 

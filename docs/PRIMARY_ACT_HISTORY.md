@@ -37,3 +37,21 @@ idempotency, role denial, path ownership, completed history and private original
 The real frontend completion API is tested for missing acts, failed review, missing commit,
 current auth and repeated completion. Bot source resolution covers Storage and Telegram files.
 The synthetic mobile browser scenario exercises the real Finish button and retained act link.
+
+## Office acts without an assigned contractor
+
+Production still required `work_history.contractor_id`, so accepting an office-uploaded act
+without an assigned contractor rolled back during history insertion. The follow-up migration
+allows the existing NULL identity; it does not invent a contractor, skip history, or approve
+any records. Approval still uses the same authenticated review transaction and status guards.
+
+The regression fixture now reproduces the production NOT NULL constraint, proves the failed
+review leaves the act pending, then applies the migration and verifies completed work, the
+retained original, NULL contractor, and exactly one history record after a repeated review.
+
+The 360 px browser fixture (`tests/act-review-mobile.html`) covers an unassigned contractor,
+long act number, a failed review with an inline error, and a successful retry. All three footer
+buttons fit the dialog; approved acts disable further approval/rejection. Backend error bodies
+are shown inside the dialog. The screenshot uses synthetic records only.
+
+![Mobile approval after retry, synthetic data](RPV_act_review_confirmed.jpg)

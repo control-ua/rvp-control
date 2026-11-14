@@ -274,7 +274,6 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
       await uploadApplicationFile({
         applicationId: application.id,
         file: selectedFile,
-        category: 'document',
       });
       setSelectedFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';

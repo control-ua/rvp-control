@@ -1,109 +1,70 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowRight, RefreshCw } from "lucide-react";
-import { portal, type Site } from "@/portal/api";
+import { ArrowRight, ClipboardCheck, RefreshCw } from "lucide-react";
+import { portal, fmt, statusLabel, type Site } from "@/portal/api";
 import { SitePassport } from "@/portal/CustomerDetails";
-import { fetchApplications } from "@/lib/applicationsApi";
-import type { Application } from "@/types";
-import { formatDate } from "@/utils/helpers";
-export default function ObjectProfile({
-  id,
-  onBack,
-  onOpenApplication,
-}: {
-  id: string;
-  onBack: () => void;
-  onOpenApplication: (id: string) => void;
+import { Pager } from "@/portal/Portal";
+import { formatDate, actStatusLabel } from "@/utils/helpers";
+import type { HistoryApplication } from "../../supabase/functions/rpv-portal/site_history";
+
+type ObjectHistory = { site: Site; applications: HistoryApplication[]; total: number; more: boolean };
+export default function ObjectProfile({ id, onBack, onOpenApplication, onOpenAct }: {
+  id: string; onBack: () => void; onOpenApplication: (id: string) => void; onOpenAct: (id: string) => void;
 }) {
-  const [site, setSite] = useState<Site | null>(null),
-    [apps, setApps] = useState<Application[]>([]);
-  const [error, setError] = useState(""),
-    [loading, setLoading] = useState(true);
+  const [history, setHistory] = useState<ObjectHistory | null>(null);
+  const [error, setError] = useState(""), [loading, setLoading] = useState(true), [page, setPage] = useState(0);
   const serial = useRef(0);
   const load = useCallback(async () => {
     const request = ++serial.current;
-    setLoading(true);
+    setLoading(true); setError("");
     try {
-      const [s, a] = await Promise.all([
-        portal<{ site: Site }>("office.site", { site: id }),
-        fetchApplications(id),
-      ]);
-      if (request === serial.current) {
-        setSite(s.site);
-        setApps(a);
-        setError("");
-      }
+      const data = await portal<ObjectHistory>("office.site_history", { site: id, page });
+      if (request === serial.current) setHistory(data);
     } catch (e) {
       if (request === serial.current) setError((e as Error).message);
     } finally {
       if (request === serial.current) setLoading(false);
     }
-  }, [id]);
+  }, [id, page]);
+  useEffect(() => { void load(); return () => { serial.current++; }; }, [load]);
   useEffect(() => {
-    setSite(null);
-    setApps([]);
-    void load();
-    return () => {
-      serial.current++;
-    };
+    const refresh = () => { if (document.visibilityState === "visible") void load(); };
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
   }, [load]);
-  return (
-    <div className="rpv-office">
-      {error && (
-        <div className="ws-error" role="alert">
-          {error}
-          <button onClick={() => void load()}>Повторити</button>
+  return <div className="rpv-office">
+    {error && <div className="ws-error" role="alert">{error}<button onClick={() => void load()}>Повторити</button></div>}
+    {!history && <><button className="rpv-back" onClick={onBack}>До списку об’єктів</button>{loading && <p role="status">Завантажуємо паспорт…</p>}</>}
+    {history && <>
+      <SitePassport site={history.site} onBack={onBack} />
+      <section className="ws-passport-apps" aria-labelledby="object-history-title">
+        <div className="ws-section-label">
+          <h2 id="object-history-title">Історія заявок · {history.total}</h2>
+          <button disabled={loading} onClick={() => void load()}><RefreshCw size={15} /> Оновити</button>
         </div>
-      )}
-      {!site && (
-        <>
-          <button className="rpv-back" onClick={onBack}>
-            До списку об’єктів
-          </button>
-          {loading && <p role="status">Завантажуємо паспорт…</p>}
-        </>
-      )}
-      {site && (
-        <>
-          <SitePassport site={site} onBack={onBack} />
-          <section className="ws-passport-apps">
-            <div className="ws-section-label">
-              <h2>Заявки цього об’єкта · {apps.length}</h2>
-              <button disabled={loading} onClick={() => void load()}>
-                <RefreshCw size={15} /> Оновити
-              </button>
+        {loading && <p role="status">Оновлюємо історію…</p>}
+        {!loading && !error && history.total === 0 && <div className="ws-empty">Заявок цього об’єкта поки немає.</div>}
+        {!loading && !error && history.applications.map(app => {
+          const completed = [...app.work_history].sort((a,b) => b.completed_at.localeCompare(a.completed_at))[0]?.completed_at;
+          const acts = [...app.acts].sort((a,b) => b.created_at.localeCompare(a.created_at));
+          const contractor = [app.contractor?.first_name, app.contractor?.last_name].filter(Boolean).join(' ');
+          return <article className="ws-history-card" key={app.id}>
+            <div className="ws-history-heading"><button className="ws-record-title" onClick={() => onOpenApplication(app.id)}>{app.application_number || 'Заявка'}</button><span className={`ws-tag ${app.status === 'completed' ? 'ws-tag-completed' : ''}`}>{statusLabel(app.status)}</span></div>
+            <p>{app.description || app.title}</p>
+            <dl className="ws-history-facts">
+              <div><dt>Створено</dt><dd>{formatDate(app.created_at)}</dd></div>
+              {completed && <div><dt>Завершено</dt><dd>{formatDate(completed)}</dd></div>}
+              <div><dt>Виконавець</dt><dd>{contractor || 'Не призначено'}</dd></div>
+              <div><dt>Обсяг</dt><dd>{app.actual_volume == null ? 'Не вказано' : `${fmt(app.actual_volume)} м³`}</dd></div>
+            </dl>
+            <div className="ws-history-actions">
+              <button onClick={() => onOpenApplication(app.id)}>Заявка <ArrowRight size={16} /></button>
+              {acts.map(act => <button key={act.id} onClick={() => onOpenAct(act.id)} aria-label={`Первинний акт ${act.act_number || ''} — ${actStatusLabel(act.status)}`}><ClipboardCheck size={16} /><span>Первинний акт<small>{actStatusLabel(act.status)}</small></span></button>)}
+              {!acts.length && <span className="ws-history-no-act">Первинний акт ще не додано</span>}
             </div>
-            <p>
-              Історія робіт, результати та перехід до актів — у картці заявки.
-            </p>
-            {!apps.length && !error && (
-              <div className="ws-empty">Пов’язаних заявок поки немає.</div>
-            )}
-            {apps.map((app) => (
-              <div className="ws-work-row" key={app.id}>
-                <div>
-                  <span className="ws-tag">{app.status}</span>
-                  <button
-                    className="ws-record-title"
-                    onClick={() => onOpenApplication(app.id)}
-                  >
-                    {app.number} · {app.customer}
-                  </button>
-                  <p>{app.description || "Опис робіт не вказано"}</p>
-                  <small>
-                    {formatDate(app.date)} ·{" "}
-                    {app.contractorName === "—"
-                      ? "Без виконавця"
-                      : app.contractorName}
-                  </small>
-                </div>
-                <button onClick={() => onOpenApplication(app.id)}>
-                  Відкрити <ArrowRight size={16} />
-                </button>
-              </div>
-            ))}
-          </section>
-        </>
-      )}
-    </div>
-  );
+          </article>;
+        })}
+        {!loading && !error && <Pager page={page} more={history.more} change={setPage} />}
+      </section>
+    </>}
+  </div>;
 }

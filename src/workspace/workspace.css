@@ -884,6 +884,17 @@ textarea:focus-visible {
 .ws-passport-apps .ws-record-title {
   font-size: 14px;
 }
+.rpv-office .ws-history-card { margin-top: 14px; padding: 18px; }
+.ws-history-heading, .ws-history-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.ws-history-heading { justify-content: space-between; }
+.ws-history-card p { margin: 12px 0; font-size: 14px; }
+.ws-history-facts { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin: 16px 0; }
+.ws-history-facts dt { color: var(--rpv-muted); font-size: 11px; }
+.ws-history-facts dd { margin: 3px 0 0; font-size: 13px; overflow-wrap: anywhere; }
+.ws-history-actions button { min-height: 44px; gap: 7px; }
+.ws-history-actions small { display: block; font-size: 10px; color: #9ac8e0; }
+.ws-history-no-act { font-size: 12px; color: var(--rpv-muted); }
+.ws-tag-completed { color: #83dfc1; background: #113f45; }
 .ws-related {
   display: flex;
   flex-wrap: wrap;

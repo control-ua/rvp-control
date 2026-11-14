@@ -2,6 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { PortalError, verifyTelegram, monthRange, uuid } from "./auth.ts";
 import { notifyPublished, notifyContact } from "./notifications.ts";
 import { ukraineCities } from "./ukraine_cities.ts";
+import { officeSiteHistory, resolveOfficeSite } from "./site_history.ts";
 
 const URL = Deno.env.get("SUPABASE_URL")!;
 const KEY =
@@ -107,10 +108,14 @@ async function dispatch(req: Request, b: any): Promise<any> {
   if (String(b.action || "").startsWith("office.")) {
     const admin = await office(
       req,
-      !["office.list", "office.site", "office.sites", "office.networks", "office.applications"].includes(
+      !["office.list", "office.site", "office.site_history", "office.sites", "office.networks", "office.applications"].includes(
         b.action,
       ),
     );
+    if (b.action === "office.site_history") {
+      const history = await officeSiteHistory(db, uuid(b.site), page(b.page));
+      return { ...history, site: site(history.site) };
+    }
     if (b.action === "office.assign") {
       const changed=result(await db.rpc("rpv_service_assign",{p_actor:admin.user_id,p_application:uuid(b.application),p_contractor:uuid(b.contractor),p_version:String(b.version)}));
       const notice=await fetch(`${URL}/functions/v1/smart-api`,{method:"POST",headers:{"Content-Type":"application/json",Authorization:req.headers.get("Authorization")||""},body:JSON.stringify({action:"notify_application",application_id:b.application})}).then(r=>r.json()).catch(()=>({ok:false}));
@@ -138,8 +143,7 @@ async function dispatch(req: Request, b: any): Promise<any> {
       };
     }
     if (b.action === "office.site") {
-      const row = result(await db.from("rpv_customer_sites").select(sitesFields).eq("id", uuid(b.site)).maybeSingle());
-      if (!row) throw new PortalError(404, "Об’єкт недоступний.");
+      const row = await resolveOfficeSite(db, uuid(b.site));
       return { site: site(row) };
     }
     if (b.action === "office.sites" || b.action === "office.networks") {
@@ -151,6 +155,7 @@ async function dispatch(req: Request, b: any): Promise<any> {
         const networks = new Set<string>();
         let query = db.from(table).select("passport_network")
           .not("passport_network", "is", null).order("passport_network").order("id");
+        if (table === "rpv_customer_sites") query = query.is("merged_into", null);
         if (user !== undefined) query = query.eq("telegram_id", user);
         for (let offset = 0; ; offset += 1000) {
           const rows = list(await query.range(offset, offset + 999));
@@ -163,6 +168,7 @@ async function dispatch(req: Request, b: any): Promise<any> {
         return { networks: [...networks].sort((a, b) => a.localeCompare(b, "uk")) };
       }
       let query = db.from(table).select(sitesFields);
+      if (table === "rpv_customer_sites") query = query.is("merged_into", null);
       if (user !== undefined) query = query.eq("telegram_id", user);
       const q = String(b.query || "").trim();
       const network = String(b.network || "").trim();

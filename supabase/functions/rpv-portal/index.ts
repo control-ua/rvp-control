@@ -138,6 +138,20 @@ async function dispatch(req: Request, b: any): Promise<any> {
       };
     }
     if (b.action === "office.sites") {
+      if (b.user !== undefined) {
+        const user = Number(b.user);
+        if (!Number.isSafeInteger(user) || user <= 0)
+          throw new PortalError(400, "Некоректний менеджер АЗК.");
+        const rows = list(
+          await db
+            .from("rpv_customer_visible_sites")
+            .select(sitesFields)
+            .eq("telegram_id", user)
+            .order("id")
+            .range(page(b.page) * 50, page(b.page) * 50 + 50),
+        );
+        return { sites: rows.slice(0, 50).map(site), more: rows.length > 50 };
+      }
       const q = String(b.query || "").trim();
       if (!/^[A-Za-z0-9]{1,30}$/.test(q))
         throw new PortalError(400, "Введіть мережу латиницею або код АЗК.");

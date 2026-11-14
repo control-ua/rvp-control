@@ -111,7 +111,7 @@ export default function GlobalSearchOverlay({ onClose, onNavigate }: Props) {
               )}
               {acts.length > 0 && (
                 <div className="mb-2">
-                  <p className="px-3 py-2 text-xs font-medium uppercase tracking-wider text-slate-600">Акти</p>
+                  <p className="px-3 py-2 text-xs font-medium uppercase tracking-wider text-slate-600">Первинні акти</p>
                   {acts.map(r => (
                     <button key={r.id} onClick={() => handleClick(r)} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-white/5">
                       <ClipboardList size={16} className="text-amber-400" />

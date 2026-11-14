@@ -49,7 +49,7 @@ export default function ExportPanel() {
     { type: 'applications', label: 'Заявки' },
     { type: 'contractors', label: 'Підрядники' },
     { type: 'payouts', label: 'Виплати' },
-    { type: 'acts', label: 'Акти' },
+    { type: 'acts', label: 'Первинні акти' },
     { type: 'problems', label: 'Проблемні' },
   ];
 

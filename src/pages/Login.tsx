@@ -1,16 +1,17 @@
-import { useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useState } from "react";
+import { ArrowRight, Droplets } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 export default function Login() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    setError('');
+    setError("");
     setLoading(true);
 
     try {
@@ -25,10 +26,10 @@ export default function Login() {
     } catch (err: any) {
       console.error(err);
 
-      if (err?.message === 'Invalid login credentials') {
-        setError('Невірний логін або пароль');
+      if (err?.message === "Invalid login credentials") {
+        setError("Невірний логін або пароль");
       } else {
-        setError(err?.message || 'Не вдалося виконати вхід');
+        setError(err?.message || "Не вдалося виконати вхід");
       }
     } finally {
       setLoading(false);
@@ -36,156 +37,76 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0d0f14] flex items-center justify-center px-4">
-
-      <div className="w-full max-w-[420px]">
-
-        <div className="mb-8 text-center">
-          <div
-            className="
-              mx-auto
-              mb-5
-              flex
-              h-16
-              w-16
-              items-center
-              justify-center
-              rounded-2xl
-              bg-cyan-500/10
-              text-3xl
-              border
-              border-cyan-500/20
-            "
-          >
-            ⚙️
-          </div>
-
-          <h1 className="text-3xl font-bold text-white">
-            RVP Control
+    <div className="ws-login">
+      <section className="ws-login-intro">
+        <div className="ws-brand">
+          <span className="ws-logo">
+            <Droplets size={25} />
+          </span>
+          <span>
+            <b>
+              RPV Control<span className="ws-brand-dot">.</span>
+            </b>
+            <small>CONTROL SYSTEM</small>
+          </span>
+        </div>
+        <div>
+          <p className="ws-eyebrow">ЄДИНИЙ РОБОЧИЙ ПРОСТІР</p>
+          <h1>
+            Кожен об’єкт.
+            <br />
+            <span>Під контролем.</span>
           </h1>
-
-          <p className="mt-2 text-sm text-gray-500">
-            Адміністративна панель
+          <p>
+            Заявки, виконавці, результати робіт та документи — в одному робочому
+            циклі.
           </p>
         </div>
-
-        <form
-          onSubmit={handleLogin}
-          className="
-            rounded-2xl
-            border
-            border-white/10
-            bg-[#13161d]
-            p-6
-            shadow-2xl
-          "
-        >
-
-          <div className="mb-5">
-            <label className="mb-2 block text-sm font-medium text-gray-300">
-              Логін
-            </label>
-
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@rvp.local"
-              autoComplete="email"
-              className="
-                w-full
-                rounded-xl
-                border
-                border-white/10
-                bg-[#0d0f14]
-                px-4
-                py-3
-                text-white
-                outline-none
-                transition
-                placeholder:text-gray-600
-                focus:border-cyan-500/50
-                focus:ring-2
-                focus:ring-cyan-500/10
-              "
-            />
-          </div>
-
-          <div className="mb-5">
-            <label className="mb-2 block text-sm font-medium text-gray-300">
-              Пароль
-            </label>
-
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              autoComplete="current-password"
-              className="
-                w-full
-                rounded-xl
-                border
-                border-white/10
-                bg-[#0d0f14]
-                px-4
-                py-3
-                text-white
-                outline-none
-                transition
-                placeholder:text-gray-600
-                focus:border-cyan-500/50
-                focus:ring-2
-                focus:ring-cyan-500/10
-              "
-            />
-          </div>
-
+        <small>Гідра Сервіс · RPV Control System</small>
+      </section>
+      <section className="ws-login-form">
+        <form onSubmit={handleLogin}>
+          <h2>Вхід до системи</h2>
+          <p>
+            Робочий простір офісу.
+            <br />
+            Увійдіть зі своїм обліковим записом.
+          </p>
+          <label htmlFor="office-email">Електронна пошта</label>
+          <input
+            id="office-email"
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
+            placeholder="name@company.ua"
+          />
+          <label htmlFor="office-password">Пароль</label>
+          <input
+            id="office-password"
+            type="password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            placeholder="Ваш пароль"
+          />
           {error && (
-            <div
-              className="
-                mb-5
-                rounded-xl
-                border
-                border-red-500/20
-                bg-red-500/10
-                px-4
-                py-3
-                text-sm
-                text-red-400
-              "
-            >
+            <div className="ws-error" role="alert">
               {error}
             </div>
           )}
-
           <button
+            className="ws-button ws-primary"
             type="submit"
             disabled={loading || !email || !password}
-            className="
-              w-full
-              rounded-xl
-              bg-cyan-500
-              py-3
-              font-semibold
-              text-[#061018]
-              transition
-              hover:bg-cyan-400
-              disabled:cursor-not-allowed
-              disabled:opacity-50
-            "
           >
-            {loading ? 'Вхід...' : 'Увійти'}
+            {loading ? "Входимо…" : "Увійти до робочого простору"}
+            <ArrowRight size={17} />
           </button>
-
         </form>
-
-        <p className="mt-5 text-center text-xs text-gray-600">
-          G Service Group • RVP Control System
-        </p>
-
-      </div>
-
+      </section>
     </div>
   );
 }

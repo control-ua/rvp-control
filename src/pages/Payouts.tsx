@@ -104,7 +104,7 @@ function ConfirmPayoutModal({ payout, onClose, onConfirmed }: { payout: PayoutIt
   return createPortal(modal, document.body);
 }
 
-export default function Payouts() {
+export default function Payouts({ focusedApplication, onClearFocus }: { focusedApplication?: string; onClearFocus?: () => void }) {
   const { showToast } = useApp();
   const [payouts, setPayouts] = useState<PayoutItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -117,7 +117,7 @@ export default function Payouts() {
     setError(null);
     try {
       const data = await fetchPayouts();
-      setPayouts(data);
+      setPayouts(data.filter(p => p.payoutStatus === 'Виплачено' || (p.applicationStatus === 'Виконана' && p.amount > 0)));
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Помилка завантаження виплат';
       setError(msg);
@@ -129,13 +129,14 @@ export default function Payouts() {
 
   useEffect(() => { loadPayouts(); }, [loadPayouts]);
 
+  const visiblePayouts = focusedApplication ? payouts.filter(p => p.id === focusedApplication) : payouts;
   const totalPaid = payouts.filter(p => p.payoutStatus === 'Виплачено').reduce((s, p) => s + p.amount, 0);
   const totalPending = payouts.filter(p => p.payoutStatus === 'Очікує').reduce((s, p) => s + p.amount, 0);
   const paidCount = payouts.filter(p => p.payoutStatus === 'Виплачено').length;
   const pendingCount = payouts.filter(p => p.payoutStatus === 'Очікує').length;
 
   return (
-    <PageHeader pageTitle="Виплати" pageSubtitle={`${payouts.length} записів`}>
+    <PageHeader pageTitle="Виплати" pageSubtitle={`Прийняті роботи та проведені виплати · ${payouts.length} записів`}>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard title="До виплати" value={formatCurrency(totalPending)} icon={<Clock size={18} />} accent="amber" />
         <StatCard title="Виплачено" value={formatCurrency(totalPaid)} icon={<CheckCircle2 size={18} />} accent="green" />
@@ -143,6 +144,7 @@ export default function Payouts() {
         <StatCard title="Кількість виплат" value={paidCount + pendingCount} icon={<Receipt size={18} />} accent="blue" />
       </div>
 
+      {focusedApplication && <div className="mb-5 flex items-center gap-4 text-sm"><span>{visiblePayouts.length ? `Виплата за заявкою ${visiblePayouts[0].applicationNumber}` : 'Виплату за цією заявкою не знайдено'}</span><button className="ws-button" onClick={onClearFocus}>Усі виплати</button></div>}
       <div className="md:hidden space-y-3" data-mobile-payouts>
         {loading ? (
           <div className="rounded-2xl border border-white/5 bg-[#141720] py-10 text-center">
@@ -166,7 +168,7 @@ export default function Payouts() {
             Виплат поки немає
           </div>
         ) : (
-          payouts.map((p) => (
+          visiblePayouts.map((p) => (
             <div
               key={p.id}
               className="rounded-2xl border border-white/5 bg-[#141720] p-4 shadow-[0_10px_30px_rgba(0,0,0,0.16)]"

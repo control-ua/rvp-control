@@ -45,14 +45,26 @@ export default function CustomerDetails({ customer, onBack }: { customer: Custom
     let active = true;
     setLoading(true);
     setError("");
-    setSites([]);
     setMore(false);
     portal<{ sites: Site[]; more: boolean }>("office.sites", { user: customer.telegram_id, page, network })
       .then((r) => { if (active) { setSites(r.sites); setMore(r.more); } })
-      .catch((e) => { if (active) setError(e.message); })
+      .catch((e) => { if (active) { setError(e.message); setSites([]); } })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [customer.telegram_id, page, network, revision]);
+  useEffect(() => {
+    const update = () => {
+      if (document.visibilityState === "visible" && !loading && !selected) setRevision((v) => v + 1);
+    };
+    const timer = window.setInterval(update, 15000);
+    window.addEventListener("focus", update);
+    document.addEventListener("visibilitychange", update);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", update);
+      document.removeEventListener("visibilitychange", update);
+    };
+  }, [loading, selected]);
   useEffect(() => {
     let active = true;
     setNetworksError("");
@@ -64,7 +76,7 @@ export default function CustomerDetails({ customer, onBack }: { customer: Custom
   const name = [customer.first_name, customer.last_name].filter(Boolean).join(" ") || "Без імені";
   return (
     <div className="rpv-office">
-      {selected ? <SitePassport site={selected} onBack={() => setSelected(null)} /> : (
+      {selected ? <SitePassport site={selected} onBack={() => { setSelected(null); setRevision((v) => v + 1); }} /> : (
         <section aria-labelledby="rpv-customer-title">
           <button className="rpv-back" onClick={onBack}><ArrowLeft size={16} /> До менеджерів АЗК</button>
           <p className="rpv-eyebrow">КАРТКА МЕНЕДЖЕРА АЗК</p>
@@ -92,7 +104,7 @@ export default function CustomerDetails({ customer, onBack }: { customer: Custom
               <p>{s.region}</p>
             </article>
           ))}
-          {!loading && !error && <Pager page={page} more={more} change={setPage} />}
+          {!loading && !error && <Pager page={page} more={more} change={(v) => { setSites([]); setPage(v); }} />}
           <button disabled={loading} onClick={() => setRevision((v) => v + 1)}>Оновити</button>
         </section>
       )}

@@ -461,7 +461,21 @@ async function dispatch(req: Request, b: any): Promise<any> {
         .eq("status", "approved")
         .maybeSingle(),
     );
-    if (!doc?.telegram_file_id) throw new PortalError(404, "Файл недоступний.");
+    if (!doc) throw new PortalError(404, "Файл недоступний.");
+    const stored = result(await db.from('act_files')
+      .select('storage_path,file_name').eq('act_id',act).not('storage_path','is',null)
+      .order('created_at',{ascending:true}).limit(1).maybeSingle());
+    if (stored?.storage_path) {
+      const {data:blob,error} = await db.storage.from('application-media').download(stored.storage_path);
+      if(error || !blob) throw new PortalError(502,"Не вдалося завантажити акт.");
+      return new Response(blob,{headers:{
+        'Content-Type':blob.type || 'application/octet-stream',
+        'Content-Disposition':`attachment; filename*=UTF-8''${encodeURIComponent(stored.file_name || 'act')}`,
+        'Access-Control-Expose-Headers':'Content-Disposition',
+        'X-Content-Type-Options':'nosniff',
+      }});
+    }
+    if (!doc.telegram_file_id) throw new PortalError(404, "Файл недоступний.");
     // Proxy bytes, never expose the bot token or Telegram file URL to the browser.
     const reply = await fetch(`https://api.telegram.org/bot${BOT}/getFile`, {
       method: "POST",
@@ -485,6 +499,7 @@ async function dispatch(req: Request, b: any): Promise<any> {
         "Content-Type":
           downloaded.headers.get("Content-Type") || "application/octet-stream",
         "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(doc.file_name || "act")}`,
+        "Access-Control-Expose-Headers": "Content-Disposition",
         "X-Content-Type-Options": "nosniff",
       },
     });

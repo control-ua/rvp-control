@@ -262,7 +262,7 @@ function CustomerPortal() {
         </div>
         <div className="rpv-stat">
           <FileCheck2 />
-          <span>Акти за місяць</span>
+          <span>Первинні акти за місяць</span>
           <strong>
             {data?.acts.length ?? "—"}
             {data?.more ? " +" : ""}
@@ -348,7 +348,7 @@ function CustomerPortal() {
                 {[
                   ["passport", "Паспорт"],
                   ["orders", "Заявки"],
-                  ["acts", "Акти"],
+                  ["acts", "Первинні акти"],
                 ].map(([id, label]) => (
                   <button
                     className={tab === id ? "active" : ""}
@@ -415,7 +415,7 @@ function CustomerPortal() {
           ) : (
             <>
               <p className="rpv-eyebrow">ПІДТВЕРДЖЕНО ОФІСОМ</p>
-              <h2>Мої акти</h2>
+              <h2>Первинні акти</h2>
               <p className="rpv-subtitle">
                 Оберіть АЗК зі списку, щоб відкрити повну картку.
               </p>
@@ -503,7 +503,7 @@ function ActList({
             <FileCheck2 size={22} />
           </span>
           <div>
-            <strong>Акт {a.act_number || "без номера"}</strong>
+            <strong>Первинний акт {a.act_number || "без номера"}</strong>
             <p>
               {a.site_label} · {a.work_date.split("-").reverse().join(".")}
             </p>
@@ -521,7 +521,7 @@ function ActList({
       ))}
       {!acts.length && !busy && (
         <p className="rpv-empty">
-          Опублікованих актів за цей місяць поки немає.
+          Первинних актів за цей місяць немає.
         </p>
       )}
     </div>
@@ -667,7 +667,7 @@ function ContractorPortal() {
                 )}
               {!a.awaiting_act && !["completed","cancelled"].includes(a.status) && <>
                 {a.contractor_stage==="departed"&&!a.arrived_at&&<button className="primary" disabled={busy} onClick={()=>transition(a,"arrive")}>На об’єкті</button>}
-                {a.arrived_at&&<button className="primary" disabled={busy} onClick={()=>{setSent(false);setResultApp(a);}}>Передати результат</button>}
+                {a.arrived_at&&<button className="primary" disabled={busy} onClick={()=>{setSent(false);setResultApp(a);}}>Додати первинний акт</button>}
                 {a.contractor_stage!=="offered"&&<button disabled={busy} onClick={()=>transition(a,"problem")}>Повідомити про проблему</button>}
               </>}
               <button onClick={openBot}><Send size={16}/>Відкрити бот</button>

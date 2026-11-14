@@ -111,7 +111,6 @@ function FileGallery({ files }: { files: ActFile[] }) {
             type="button"
             key={file.id}
             onClick={() => {
-              console.log('ACT FILE CLICK', file);
               setViewerIndex(index);
             }}
             className="group flex w-full cursor-pointer items-center gap-3 rounded-lg border border-white/5 bg-white/[0.03] p-3 text-left transition-colors hover:border-blue-500/30 hover:bg-white/[0.06]"
@@ -154,7 +153,7 @@ function FileGallery({ files }: { files: ActFile[] }) {
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm text-slate-200">{file.fileName ?? 'Без назви'}</p>
               <p className="mt-0.5 text-xs text-slate-500">
-                {file.fileType} · {formatDate(file.createdAt)}
+                {formatDate(file.createdAt)}
               </p>
             </div>
           </a>
@@ -287,7 +286,7 @@ function ActDetailModal({
       <div className="relative bg-[#141720] border border-white/10 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
         <div className="sticky top-0 bg-[#141720] border-b border-white/5 px-6 py-4 flex items-center justify-between z-10">
           <div className="flex items-center gap-3">
-            <span className="font-mono text-sm text-blue-400 font-semibold">{act.actNumber ?? '—'}</span>
+            <span className="text-sm text-blue-400 font-semibold">Первинний акт {act.actNumber ?? '—'}</span>
             <StatusBadge label={actStatusLabel(currentStatus)} className={getActStatusColor(currentStatus)} />
           </div>
           <button onClick={onClose} className="text-slate-500 hover:text-slate-300 transition-colors p-1 rounded-lg hover:bg-white/5">
@@ -358,9 +357,9 @@ function ActDetailModal({
           {/* Files */}
           <section>
             <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
-              Файли акта {act.files.length > 0 && `(${act.files.length})`}
+              Первинний акт
             </h3>
-            {act.serviceReport&&<div className="mb-4 rounded-lg border border-blue-400/20 bg-blue-500/10 p-4"><p className="font-semibold text-blue-300">Фактичний результат підрядника</p><p className="text-slate-200">Дата: {act.serviceReport.work_date} · {act.serviceReport.volume===null?"Без відкачки":`${act.serviceReport.volume} м³`}</p><p className="whitespace-pre-wrap text-slate-400">{act.serviceReport.notes}</p><p className="mt-2 text-xs text-slate-400">Підтвердження приймає ці дані та публікує акт для прив’язаної АЗК.</p></div>}
+            {act.serviceReport&&<div className="mb-4 rounded-lg border border-blue-400/20 bg-blue-500/10 p-4"><p className="font-semibold text-blue-300">Фактичний результат підрядника</p><p className="text-slate-200">Дата: {act.serviceReport.work_date} · {act.serviceReport.volume===null?"Без відкачки":`${act.serviceReport.volume} м³`}</p><p className="whitespace-pre-wrap text-slate-400">{act.serviceReport.notes}</p></div>}
             <FileGallery files={act.files} />
           </section>
         </div>
@@ -474,8 +473,8 @@ export default function Acts({ initialId, onRecordClose }: { initialId?: string;
   return (
     <>
       <PageHeader
-        pageTitle="Акти"
-        pageSubtitle={`${acts.length} завантажених актів`}
+        pageTitle="Первинні акти"
+        pageSubtitle={`${acts.length} актів`}
       >
         {loading ? (
           <div className="flex items-center justify-center py-20">
@@ -497,7 +496,7 @@ export default function Acts({ initialId, onRecordClose }: { initialId?: string;
           </div>
         ) : acts.length === 0 ? (
           <div className="text-center py-20 text-slate-500">
-            Актів ще не завантажено
+            Первинних актів ще немає
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -514,13 +513,13 @@ export default function Acts({ initialId, onRecordClose }: { initialId?: string;
                     {firstPhoto ? (
                       <TelegramImage
                         src={firstPhoto.url}
-                        alt={`Акт ${act.actNumber ?? ''}`}
+                        alt={`Первинний акт ${act.actNumber ?? ''}`}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
                     ) : firstFile ? (
                       <div className="flex flex-col items-center justify-center gap-2 text-slate-500 h-full">
                         <FileText size={32} className="text-slate-600" />
-                        <span className="text-xs text-slate-500">{firstFile.fileType}</span>
+                        <span className="text-xs text-slate-500">Первинний акт</span>
                       </div>
                     ) : (
                       <div className="flex flex-col items-center justify-center gap-2 text-slate-500 h-full">
@@ -539,7 +538,7 @@ export default function Acts({ initialId, onRecordClose }: { initialId?: string;
                   </div>
                   <div className="p-4 space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="font-mono text-xs text-blue-400 font-semibold">{act.actNumber ?? '—'}</span>
+                      <span className="text-xs text-blue-400 font-semibold">Первинний акт {act.actNumber ?? '—'}</span>
                       <span className="text-xs text-slate-500">{formatDate(act.actDate ?? act.createdAt)}</span>
                     </div>
                     <p className="text-sm text-slate-300 truncate">{act.contractorName}</p>

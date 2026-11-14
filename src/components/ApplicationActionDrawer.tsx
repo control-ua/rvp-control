@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   AlertTriangle,
   CalendarClock,
@@ -6,7 +6,6 @@ import {
   ChevronDown,
   Clock3,
   FileText,
-  Image as ImageIcon,
   Loader2,
   MessageSquarePlus,
   Paperclip,
@@ -53,7 +52,6 @@ import {
   fetchApplicationFiles,
   uploadApplicationFile,
   type ApplicationFile,
-  type ApplicationMediaCategory,
 } from '@/lib/applicationFilesApi';
 
 interface CommentView {
@@ -68,15 +66,9 @@ interface Props {
   onClose: () => void;
   onChanged?: () => Promise<void> | void;
   relatedActions?: ReactNode;
+  primaryActAction?: ReactNode;
   resultLabel?: string;
 }
-
-const categoryLabels: Record<ApplicationMediaCategory, string> = {
-  before: 'Фото «До»',
-  after: 'Фото «Після»',
-  document: 'Документ',
-  other: 'Інше',
-};
 
 function toLocalInputValue(value?: string | null) {
   if (!value) return '';
@@ -96,7 +88,7 @@ function eventIcon(type: string) {
   return <Clock3 size={15} className="text-slate-400" />;
 }
 
-export default function ApplicationActionDrawer({ application, onClose, onChanged, relatedActions, resultLabel }: Props) {
+export default function ApplicationActionDrawer({ application, onClose, onChanged, relatedActions, primaryActAction, resultLabel }: Props) {
   const { showToast } = useApp();
   const dialogRef = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -128,7 +120,6 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
   const [problemComment, setProblemComment] = useState('');
   const [deadlineValue, setDeadlineValue] = useState(toLocalInputValue(application.deadline));
   const [commentText, setCommentText] = useState('');
-  const [fileCategory, setFileCategory] = useState<ApplicationMediaCategory>('before');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [tab, setTab] = useState<'actions' | 'details' | 'media' | 'timeline'>('actions');
 
@@ -283,11 +274,11 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
       await uploadApplicationFile({
         applicationId: application.id,
         file: selectedFile,
-        category: fileCategory,
+        category: 'document',
       });
       setSelectedFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
-      showToast('Файл додано до заявки', 'success');
+      showToast('Первинний акт додано', 'success');
       await loadExtra();
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Не вдалося завантажити файл', 'error');
@@ -309,13 +300,6 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
       setBusy(null);
     }
   };
-
-  const groupedFiles = useMemo(() => {
-    return (['before', 'after', 'document', 'other'] as ApplicationMediaCategory[]).map((category) => ({
-      category,
-      files: files.filter((file) => file.category === category),
-    }));
-  }, [files]);
 
   return (
     <div className="fixed inset-0 z-[120]">
@@ -350,7 +334,7 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
           {([
             ['actions', 'Дії'],
             ['details', 'Дані'],
-            ['media', 'Фото / файли'],
+            ['media', 'Первинний акт'],
             ['timeline', 'Таймлайн'],
           ] as const).map(([id, label]) => (
             <button
@@ -424,15 +408,15 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
                     onClick={() => setTab('media')}
                     className="flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-2xl border border-cyan-500/20 bg-cyan-500/[0.07] text-xs font-semibold text-cyan-300"
                   >
-                    <ImageIcon size={20} />
-                    Фото / файл
+                    <FileText size={20} />
+                    Первинний акт
                   </button>
                 </div>
                 {completionNotice && (
                   <div role="status" className="mt-3 rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-200">
                     {awaitingAct
-                      ? 'Акт очікує перевірки офісом у розділі «Акти». Після підтвердження заявку буде виконано. Якщо потрібні виправлення — відхиліть акт із причиною.'
-                      : 'Для завершення потрібен акт. Підрядник надсилає його через «Завершити» в боті, а офіс підтверджує у розділі «Акти». До підтвердження заявка залишається в роботі; повертати її назад не потрібно.'}
+                      ? 'Первинний акт на перевірці.'
+                      : 'Для завершення потрібен первинний акт.'}
                   </div>
                 )}
               </section>
@@ -535,32 +519,26 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
           ) : tab === 'media' ? (
             <div className="space-y-5">
               <section className="rounded-2xl border border-cyan-500/15 bg-cyan-500/[0.04] p-4">
-                <h3 className="text-sm font-semibold text-white">Додати фото або документ</h3>
-                <p className="mt-1 text-xs text-slate-500">Файли зберігаються приватно. Максимум 20 МБ.</p>
-                <div className="mt-4 grid gap-2 sm:grid-cols-[160px_1fr_auto]">
-                  <select
-                    value={fileCategory}
-                    onChange={(event) => setFileCategory(event.target.value as ApplicationMediaCategory)}
-                    className="min-h-11 rounded-xl border border-white/10 bg-[#0b1018] px-3 text-sm text-slate-200"
-                  >
-                    {Object.entries(categoryLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                  </select>
+                <h3 className="text-sm font-semibold text-white">Первинний акт</h3>
+                {primaryActAction && <div className="ws-related mt-3">{primaryActAction}</div>}
+                <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
                   <button
                     onClick={() => fileInputRef.current?.click()}
                     className="min-h-11 truncate rounded-xl border border-white/10 bg-white/[0.03] px-3 text-left text-sm text-slate-400"
                   >
-                    {selectedFile?.name || 'Оберіть файл…'}
+                    {selectedFile?.name || 'Обрати акт'}
                   </button>
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
+                    accept="image/*,.pdf"
+                    aria-label="Первинний акт"
                     className="hidden"
                     onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
                   />
                   <button
                     onClick={() => void handleUpload()}
-                    disabled={busy !== null}
+                    disabled={busy !== null || !selectedFile}
                     className="min-h-11 rounded-xl bg-cyan-600 px-4 text-sm font-semibold text-white disabled:opacity-40"
                   >
                     {busy === 'upload' ? <Loader2 size={17} className="animate-spin" /> : 'Завантажити'}
@@ -568,17 +546,12 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
                 </div>
               </section>
 
-              {groupedFiles.map(({ category, files: categoryFiles }) => (
-                <section key={category}>
-                  <div className="mb-2 flex items-center justify-between">
-                    <h3 className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">{categoryLabels[category]}</h3>
-                    <span className="text-[11px] text-slate-600">{categoryFiles.length}</span>
-                  </div>
-                  {categoryFiles.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-white/10 px-4 py-5 text-center text-xs text-slate-600">Немає файлів</div>
+                <section aria-label="Файли первинного акта">
+                  {files.length === 0 && !primaryActAction ? (
+                    <div className="rounded-xl border border-dashed border-white/10 px-4 py-5 text-center text-xs text-slate-400">Акт ще не додано</div>
                   ) : (
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                      {categoryFiles.map((file) => {
+                      {files.map((file) => {
                         const isImage = file.fileType.startsWith('image/');
                         return (
                           <div key={file.id} className="group overflow-hidden rounded-xl border border-white/[0.07] bg-white/[0.025]">
@@ -609,7 +582,6 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
                     </div>
                   )}
                 </section>
-              ))}
             </div>
           ) : (
             <div>

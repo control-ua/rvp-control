@@ -358,7 +358,7 @@ export default function Today({
             <h3>Під рукою</h3>
             {[
               { id: "customers", label: "Менеджери АЗК" },
-              { id: "acts", label: "Акти та результати" },
+              { id: "acts", label: "Первинні акти" },
               { id: "contractors", label: "Виконавці" },
             ].map((i) => (
               <button key={i.id} onClick={() => onNavigate?.(i.id as PageId)}>

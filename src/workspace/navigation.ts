@@ -36,7 +36,7 @@ export const navigationGroups: {
   {
     label: "Документи та розрахунки",
     items: [
-      { id: "acts", label: "Акти", icon: ClipboardCheck },
+      { id: "acts", label: "Первинні акти", icon: ClipboardCheck },
       { id: "payouts", label: "Виплати", icon: Wallet },
       { id: "finance", label: "Фінанси", icon: BarChart3 },
     ],

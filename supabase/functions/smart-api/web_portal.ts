@@ -53,14 +53,14 @@ export async function handleWebPortal(
   if (!contractorMode && c.data?.status === "active" && c.data.phone)
     buttons.push([
       {
-        text: "Кабінет замовника",
+        text: "Кабінет менеджера АЗК",
         web_app: { url: PORTAL + "?cabinet=customer" },
       },
     ]);
   if (k.data?.status === "active" && k.data.phone)
     buttons.push([
       {
-        text: "Кабінет підрядника",
+        text: "Кабінет виконавця",
         web_app: { url: PORTAL + "?cabinet=contractor" },
       },
     ]);

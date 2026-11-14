@@ -5,7 +5,7 @@ export type ActStatus = 'approved' | 'pending' | 'rejected';
 export interface ActFile {
   id: string;
   actId: string;
-  telegramFileId: string;
+  telegramFileId: string | null;
   fileType: string;
   fileName: string | null;
   createdAt: string;
@@ -68,7 +68,8 @@ interface ApplicationRow {
 interface ActFileRow {
   id: string;
   act_id: string;
-  telegram_file_id: string;
+  telegram_file_id: string | null;
+  storage_path: string | null;
   file_type: string;
   file_name: string | null;
   created_at: string;
@@ -118,10 +119,15 @@ export async function updateActStatus(
       ? 'approve_act_from_web'
       : 'reject_act_from_web';
 
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError || !sessionData.session?.access_token)
+    throw new Error('Сесія завершилась. Увійдіть знову.');
+
   const {
     data: result,
     error: invokeError,
   } = await supabase.functions.invoke('smart-api', {
+    headers: { Authorization: `Bearer ${sessionData.session.access_token}` },
     body: {
       action,
       act_id: actId,
@@ -135,12 +141,27 @@ export async function updateActStatus(
     );
   }
 
-  if (result?.ok === false) {
+  if (!result?.ok) {
     throw new Error(
       result?.error ||
       'Telegram-бот не зміг обробити акт.',
     );
   }
+}
+
+/** Completion is the same office review used by the act register and the bot. */
+export async function completeApplicationWithAct(applicationId: string): Promise<void> {
+  const { data: acts, error } = await supabase.from('acts')
+    .select('id,status').eq('application_id', applicationId)
+    .in('status', ['pending', 'approved']).order('created_at', { ascending: false });
+  if (error) throw new Error('Не вдалося перевірити первинний акт. Спробуйте ще раз.');
+  const act = acts?.find(a => a.status === 'approved') || acts?.[0];
+  if (!act) throw new Error('Додайте первинний акт у вкладці «Первинний акт».');
+  if (act.status === 'pending') await updateActStatus(act.id, 'approved');
+  const { data: application, error: stateError } = await supabase.from('applications')
+    .select('status').eq('id', applicationId).single();
+  if (stateError || application?.status !== 'completed')
+    throw new Error('Завершення ще не підтверджено. Оновіть заявку та повторіть дію.');
 }
 
 export async function fetchActs(): Promise<ActItem[]> {
@@ -205,7 +226,7 @@ export async function fetchActs(): Promise<ActItem[]> {
     supabase
       .from('act_files')
       .select(
-        'id, act_id, telegram_file_id, file_type, file_name, created_at',
+        'id, act_id, telegram_file_id, storage_path, file_type, file_name, created_at',
       )
       .order('created_at', {
         ascending: true,
@@ -257,6 +278,10 @@ export async function fetchActs(): Promise<ActItem[]> {
     const list =
       filesByAct.get(f.act_id) ?? [];
 
+    const signed = f.storage_path
+      ? await supabase.storage.from('application-media').createSignedUrl(f.storage_path, 3600)
+      : null;
+    if (signed?.error) throw new Error('Не вдалося відкрити файл первинного акта. Оновіть список.');
     list.push({
       id: f.id,
       actId: f.act_id,
@@ -264,7 +289,7 @@ export async function fetchActs(): Promise<ActItem[]> {
       fileType: f.file_type,
       fileName: f.file_name,
       createdAt: f.created_at,
-      url: telegramFileUrl(f.telegram_file_id),
+      url: signed?.data?.signedUrl || (f.telegram_file_id ? telegramFileUrl(f.telegram_file_id) : ''),
     });
 
     filesByAct.set(

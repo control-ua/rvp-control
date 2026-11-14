@@ -151,7 +151,8 @@ export async function insertApplicationFile(input: {
   if (error) throw new Error(`Не вдалося додати файл: ${error.message}`);
 }
 
-export async function deleteApplicationFile(file: Pick<ApplicationFile, 'id' | 'storagePath'>): Promise<void> {
+export async function deleteApplicationFile(file: Pick<ApplicationFile, 'id' | 'storagePath' | 'category'>): Promise<void> {
+  if (file.category === 'act') throw new Error('Первинний акт зберігається в історії. Для виправлення додайте новий файл.');
   if (file.storagePath) {
     const { error: storageError } = await supabase.storage
       .from(BUCKET)

@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import type { RegisteredContact } from "./contact";
 export const BOT_URL = "https://t.me/GService_zayavki_bot";
 export type Site = {
   id: string;
@@ -8,6 +9,7 @@ export type Site = {
   passport_network: string | null;
   region: string;
   code: string;
+  contacts?: RegisteredContact[];
 };
 export type Act = {
   act_id: string;

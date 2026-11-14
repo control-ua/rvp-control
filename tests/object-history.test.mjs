@@ -5,6 +5,7 @@ import ts from 'typescript';
 import { PGlite } from '@electric-sql/pglite';
 import * as auth from '../supabase/functions/rpv-portal/auth.ts';
 import * as history from '../supabase/functions/rpv-portal/site_history.ts';
+import { contactLinks } from '../src/portal/contact.ts';
 const migration = new URL('../supabase/migrations/20261114192011_canonical_object_history.sql',import.meta.url);
 const ids = Array.from({length:6},(_,i)=>`40000000-0000-0000-0000-${String(i+1).padStart(12,'0')}`);
 
@@ -57,21 +58,39 @@ test('merging keeps one passport, its orders/acts/history and access; repeat reg
  } finally {await db.close();}
 });
 
-test('office history resolves old URLs, isolates each passport, paginates, and denies outsiders',async()=>{
- let role='viewer', fail=false, handler;
- const sites=ids.slice(0,3).map((id,i)=>({id,merged_into:i===1?ids[0]:null,passport_network:'WOG',passport_azk_code:'90',passport_city_code:'city'}));
+test('office history and registered contacts resolve old URLs, isolate each passport, paginate, and deny outsiders',async()=>{
+ let role='viewer', fail=false, contactFail=false, handler;
+ const readTables=[];
+ const sites=ids.slice(0,3).map((id,i)=>({id,site_key:`self-${id}`,merged_into:i===1?ids[0]:null,passport_network:'WOG',passport_azk_code:'90',passport_city_code:'city'}));
+ const makeContact=(id,status='active')=>({telegram_id:id,scope_kind:'site',scope_key:sites[0].site_key,customers:{first_name:`Manager ${id}`,last_name:null,username:id===123?'registered_manager':null,phone:'+380000000000',status}});
+ const grants=[makeContact(123),makeContact(124),makeContact(125,'rejected'),makeContact(126,'pending'),{...makeContact(127),scope_key:sites[2].site_key},{...makeContact(128),scope_kind:'network'}];
  const apps=Array.from({length:53},(_,i)=>({id:String(i).padStart(3,'0'),customer_site_id:i===52?ids[2]:ids[0],created_at:'2026-11-14',status:i===51?'cancelled':i===50?'in_progress':'completed',acts:[],work_history:[]}));
- const db={auth:{getUser:async jwt=>jwt==='office'?{data:{user:{id:'office'}}}:{data:{user:null}}},from(table){let rows=table==='admin_users'?[{user_id:'office',role,is_active:role!=='revoked'}]:table==='rpv_customer_sites'?[...sites]:[...apps],start=0,end=Infinity,orders=[];
- const q={select(){return q},eq(k,v){rows=rows.filter(r=>r[k]===v);return q},order(k,o={}){orders.push([k,o.ascending!==false]);return q},range(a,b){start=a;end=b;return q},maybeSingle:async()=>({data:rows[0]||null,error:null}),then(ok,bad){rows.sort((a,b)=>{for(const [k,asc] of orders){const v=String(a[k]).localeCompare(String(b[k]));if(v)return asc?v:-v}return 0});return Promise.resolve({data:rows.slice(start,end+1),count:rows.length,error:fail?{message:'failed'}:null}).then(ok,bad)}};return q;}};
+ const db={auth:{getUser:async jwt=>jwt==='office'?{data:{user:{id:'office'}}}:{data:{user:null}}},from(table){readTables.push(table);let rows=table==='admin_users'?[{user_id:'office',role,is_active:role!=='revoked'}]:table==='rpv_customer_sites'?[...sites]:table==='rpv_customer_access'?[...grants]:[...apps],start=0,end=Infinity,orders=[];
+ const q={select(){return q},eq(k,v){rows=rows.filter(r=>r[k]===v);return q},order(k,o={}){orders.push([k,o.ascending!==false]);return q},range(a,b){start=a;end=b;return q},maybeSingle:async()=>({data:rows[0]||null,error:null}),then(ok,bad){rows.sort((a,b)=>{for(const [k,asc] of orders){const v=String(a[k]).localeCompare(String(b[k]));if(v)return asc?v:-v}return 0});return Promise.resolve({data:rows.slice(start,end+1),count:rows.length,error:fail||(contactFail&&table==='rpv_customer_access')?{message:'failed'}:null}).then(ok,bad)}};return q;}};
  const source=await fs.readFile(new URL('../supabase/functions/rpv-portal/index.ts',import.meta.url),'utf8');
  const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
  new Function('require','exports','Deno',compiled)(name=>name.includes('supabase-js')?{createClient:()=>db}:name.includes('auth')?auth:name.includes('site_history')?history:name.includes('ukraine_cities')?{ukraineCities:[]}: {},{}, {env:{get:()=>''},serve:fn=>{handler=fn}});
- const request=(token='office',page=0,site=ids[1])=>handler(new Request('https://test.example',{method:'POST',headers:{Authorization:token?'Bearer '+token:'','Content-Type':'application/json'},body:JSON.stringify({action:'office.site_history',site,page})}));
+ const request=(token='office',page=0,site=ids[1],action='office.site_history')=>handler(new Request('https://test.example',{method:'POST',headers:{Authorization:token?'Bearer '+token:'','Content-Type':'application/json'},body:JSON.stringify({action,site,page})}));
  assert.equal((await request('')).status,401);assert.equal((await request('outsider')).status,401);
  role='unknown';assert.equal((await request()).status,403);role='revoked';assert.equal((await request()).status,403);role='viewer';
+ assert.equal(readTables.includes('rpv_customer_access'),false,'unauthorized requests must not read contacts');
  const first=await (await request()).json();assert.equal(first.site.id,ids[0]);assert.equal(first.total,52);assert.equal(first.applications.length,50);assert.equal(first.more,true);
+ assert.deepEqual(first.site.contacts.map(c=>c.telegram_id),[123,124]);assert.equal(first.site.contacts[0].first_name,'Manager 123');assert.equal(first.site.contacts[0].phone,'+380000000000');assert.equal(first.site.contacts[0].username,'registered_manager');
+ assert.equal(first.site.site_key,undefined);assert.equal(first.site.contacts[0].status,undefined);
+ assert.deepEqual((await (await request('office',0,ids[0],'office.site')).json()).site.contacts,first.site.contacts);
  const next=await (await request('office',1)).json();assert.equal(next.applications.length,2);assert.equal(next.more,false);assert.deepEqual(next.applications.map(a=>a.status),['in_progress','cancelled']);
- assert.equal((await (await request('office',0,ids[2])).json()).total,1);
+ const otherSite=await (await request('office',0,ids[2])).json();assert.equal(otherSite.total,1);assert.deepEqual(otherSite.site.contacts.map(c=>c.telegram_id),[127]);
+ grants.splice(grants.findIndex(g=>g.telegram_id===127),1);
+ assert.deepEqual((await (await request('office',0,ids[2])).json()).site.contacts,[]);
  assert.equal((await request('office',0,ids[5])).status,404);assert.equal((await request('office',-1)).status,400);
+ contactFail=true;assert.equal((await request()).status,500);contactFail=false;
  fail=true;assert.equal((await request()).status,500);
+});
+
+test('contact links use registered username or phone and reject malformed targets',()=>{
+ assert.deepEqual(contactLinks({username:'@registered_manager',phone:'+380 (00) 000-00-00'}),{username:'registered_manager',phone:'+380000000000',telegram:'https://t.me/registered_manager'});
+ assert.equal(contactLinks({username:null,phone:'+380000000000'}).telegram,'https://t.me/+380000000000');
+ assert.deepEqual(contactLinks({username:'javascript:alert(1)',phone:'javascript:123456789'}),{username:null,phone:null,telegram:null});
+ assert.equal(contactLinks({username:'name?text=oops',phone:null}).telegram,null);
+ assert.equal(contactLinks({username:null,phone:null}).telegram,null);
 });

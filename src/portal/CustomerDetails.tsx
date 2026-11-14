@@ -1,11 +1,25 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, Phone, Send, UserRound } from "lucide-react";
 import { portal, fmt, type Customer, type Site } from "./api";
+import { contactLinks, type RegisteredContact } from "./contact";
 import { Pager } from "./Portal";
 
 export function SitePassport({ site, onBack }: { site: Site; onBack: () => void }) {
   const heading = useRef<HTMLHeadingElement>(null);
+  const [loaded, setLoaded] = useState<{ id: string; contacts: RegisteredContact[] } | null>(null);
+  const [contactError, setContactError] = useState<{ id: string; message: string } | null>(null);
+  const [retry, setRetry] = useState(0);
+  const contacts = site.contacts ?? (loaded?.id === site.id ? loaded.contacts : null);
   useEffect(() => { heading.current?.focus(); }, [site.id]);
+  useEffect(() => {
+    if (site.contacts !== undefined) return;
+    let active = true;
+    setContactError(null);
+    portal<{ site: Site }>('office.site', { site: site.id })
+      .then(({ site: passport }) => { if (active) setLoaded({ id: site.id, contacts: passport.contacts || [] }); })
+      .catch((e) => { if (active) setContactError({ id: site.id, message: e.message }); });
+    return () => { active = false; };
+  }, [site.id, site.contacts, retry]);
   return (
     <section className="rpv-office-details" aria-labelledby="rpv-passport-title">
       <button className="rpv-back" onClick={onBack}>
@@ -24,6 +38,28 @@ export function SitePassport({ site, onBack }: { site: Site; onBack: () => void 
           <div><dt>Об’єм септика</dt><dd>{site.capacity_m3 == null ? "—" : `${fmt(site.capacity_m3)} м³`}</dd></div>
         </dl>
       </article>
+      <section className="rpv-passport-contacts" aria-labelledby="rpv-contacts-title">
+        <h2 id="rpv-contacts-title"><UserRound size={19} /> Контакти об’єкта</h2>
+        {contactError?.id === site.id ? <p className="rpv-error" role="alert">{contactError.message} <button onClick={() => setRetry(v => v + 1)}>Повторити</button></p>
+          : contacts === null ? <p role="status">Завантажуємо контакти…</p>
+          : contacts.length === 0 ? <p>Менеджера до цього об’єкта ще не прив’язано.</p>
+          : contacts.map(contact => {
+            const links = contactLinks(contact);
+            const name = [contact.first_name, contact.last_name].filter(Boolean).join(' ') || 'Ім’я не вказано';
+            return <article className="rpv-passport-contact" key={contact.telegram_id}>
+              <p>Менеджер АЗК · ім’я при реєстрації</p>
+              <h3>{name}</h3>
+              <div className="rpv-contact-info">
+                {links.phone ? <a href={`tel:${links.phone}`}>{contact.phone}</a> : <span>Телефон не вказано</span>}
+                {links.username && <span>@{links.username}</span>}
+              </div>
+              <div className="rpv-contact-actions">
+                {links.phone && <a href={`tel:${links.phone}`} aria-label={`Зателефонувати: ${name}`}><Phone size={17} /> Зателефонувати</a>}
+                {links.telegram && <a href={links.telegram} target="_blank" rel="noopener noreferrer" aria-label={`Telegram: ${name}`}><Send size={17} /> Telegram</a>}
+              </div>
+            </article>;
+          })}
+      </section>
     </section>
   );
 }

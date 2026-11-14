@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   AlertTriangle,
   CalendarClock,
@@ -23,7 +23,7 @@ import {
 import type { Application } from '@/types';
 import StatusBadge from '@/components/StatusBadge';
 import { useApp } from '@/context/AppContext';
-import { formatDateTime, getApplicationStatusColor } from '@/utils/helpers';
+import { formatCurrency, formatDateTime, getApplicationStatusColor } from '@/utils/helpers';
 import {
   assignApplicationContractor,
   fetchWorkHistory,
@@ -67,6 +67,8 @@ interface Props {
   application: Application;
   onClose: () => void;
   onChanged?: () => Promise<void> | void;
+  relatedActions?: ReactNode;
+  resultLabel?: string;
 }
 
 const categoryLabels: Record<ApplicationMediaCategory, string> = {
@@ -94,8 +96,22 @@ function eventIcon(type: string) {
   return <Clock3 size={15} className="text-slate-400" />;
 }
 
-export default function ApplicationActionDrawer({ application, onClose, onChanged }: Props) {
+export default function ApplicationActionDrawer({ application, onClose, onChanged, relatedActions, resultLabel }: Props) {
   const { showToast } = useApp();
+  const dialogRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const panel = dialogRef.current;
+    panel?.querySelector<HTMLButtonElement>('button[aria-label="Закрити заявку"]')?.focus();
+    const containFocus = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab' || !panel) return;
+      const controls = Array.from(panel.querySelectorAll<HTMLElement>('button:not(:disabled),a[href],input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex="0"]')).filter(el => el.getClientRects().length);
+      const first = controls[0], last = controls[controls.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !panel.contains(document.activeElement))) { event.preventDefault(); last?.focus(); }
+      if (!event.shiftKey && (document.activeElement === last || !panel.contains(document.activeElement))) { event.preventDefault(); first?.focus(); }
+    };
+    document.addEventListener('keydown', containFocus);
+    return () => document.removeEventListener('keydown', containFocus);
+  }, []);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [contractors, setContractors] = useState<ContractorListItem[]>([]);
@@ -114,7 +130,7 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
   const [commentText, setCommentText] = useState('');
   const [fileCategory, setFileCategory] = useState<ApplicationMediaCategory>('before');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [tab, setTab] = useState<'actions' | 'media' | 'timeline'>('actions');
+  const [tab, setTab] = useState<'actions' | 'details' | 'media' | 'timeline'>('actions');
 
   const isFinished = application.status === 'Виконана' || application.status === 'Скасована';
 
@@ -309,12 +325,12 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
         className="absolute inset-0 bg-black/70 backdrop-blur-sm"
       />
 
-      <aside className="absolute inset-y-0 right-0 flex w-full max-w-2xl flex-col border-l border-white/10 bg-[#0d131c] shadow-2xl">
+      <aside ref={dialogRef} role="dialog" aria-modal="true" aria-label={`Заявка ${application.number}`} className="absolute inset-y-0 right-0 flex w-full max-w-2xl flex-col border-l border-white/10 bg-[#0c2139] shadow-2xl">
         <header className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-mono text-sm font-bold text-blue-400">{application.number}</span>
-              <StatusBadge label={awaitingAct ? 'Акт на перевірці' : application.status} className={getApplicationStatusColor(application.status)} />
+              <StatusBadge label={resultLabel || (awaitingAct ? 'Очікуємо акт / перевірку' : application.status)} className={getApplicationStatusColor(application.status)} />
               {hasProblem && (
                 <span className="rounded-full border border-rose-500/25 bg-rose-500/10 px-2 py-0.5 text-[11px] font-semibold text-rose-300">
                   ⚠ Проблема
@@ -324,14 +340,16 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
             <h2 className="mt-1 truncate text-lg font-bold text-white">{application.customer}</h2>
             <p className="mt-1 line-clamp-2 text-xs text-slate-500">{application.address}</p>
           </div>
-          <button onClick={onClose} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/5 text-slate-400 hover:text-white">
+          <button aria-label="Закрити заявку" onClick={onClose} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/5 text-slate-400 hover:text-white">
             <X size={19} />
           </button>
         </header>
 
-        <div className="grid grid-cols-3 border-b border-white/10 bg-[#0a1018] p-2">
+        {relatedActions}
+        <div className="grid grid-cols-4 border-b border-white/10 bg-[#0a1d32] p-2">
           {([
             ['actions', 'Дії'],
+            ['details', 'Дані'],
             ['media', 'Фото / файли'],
             ['timeline', 'Таймлайн'],
           ] as const).map(([id, label]) => (
@@ -349,6 +367,13 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
           {loading ? (
             <div className="flex h-40 items-center justify-center gap-2 text-sm text-slate-500">
               <Loader2 size={18} className="animate-spin" /> Завантаження…
+            </div>
+           ) : tab === 'details' ? (
+            <div className="space-y-6 text-sm text-slate-200">
+              <section><h3 className="text-xs text-slate-400 mb-2">Роботи / потреба</h3><p className="whitespace-pre-wrap">{application.description || 'Опис не вказано'}</p></section>
+              <dl className="grid grid-cols-2 gap-5"><div><dt className="text-xs text-slate-400 mb-1">Код АЗК</dt><dd>{application.azkCode || '—'}</dd></div><div><dt className="text-xs text-slate-400 mb-1">Фактичний обсяг</dt><dd>{application.actualVolume ? `${application.actualVolume} м³` : 'Не вказано'}</dd></div><div><dt className="text-xs text-slate-400 mb-1">Ставка за одиницю</dt><dd>{application.unitPrice ? formatCurrency(application.unitPrice) : 'Не вказано'}</dd></div><div><dt className="text-xs text-slate-400 mb-1">Дата заявки</dt><dd>{formatDateTime(application.date)}</dd></div><div><dt className="text-xs text-slate-400 mb-1">Виплата виконавцю</dt><dd>{formatCurrency(application.payoutAmount)}</dd></div><div><dt className="text-xs text-slate-400 mb-1">Стан виплати</dt><dd>{application.payoutStatus}</dd></div></dl>
+              <section><h3 className="text-xs text-slate-400 mb-2">Виконавець</h3><p>{application.contractorName === '—' ? 'Не призначено' : application.contractorName}</p>{application.contractorPhone && application.contractorPhone !== '—' && <a className="inline-block mt-2 text-sky-300" href={`tel:${application.contractorPhone}`}>{application.contractorPhone}</a>}</section>
+              {application.managerComment && <section><h3 className="text-xs text-slate-400 mb-2">Примітка офісу</h3><p className="whitespace-pre-wrap">{application.managerComment}</p></section>}
             </div>
           ) : tab === 'actions' ? (
             <div className="space-y-5">
@@ -484,7 +509,7 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
                 <div className="max-h-52 space-y-2 overflow-y-auto pr-1">
                   {comments.length === 0 && <p className="text-xs text-slate-600">Коментарів ще немає</p>}
                   {comments.map((comment) => (
-                    <div key={comment.id} className="rounded-xl bg-[#0a1018] p-3">
+                    <div key={comment.id} className="rounded-xl bg-[#0a1d32] p-3">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-xs font-semibold text-slate-300">{comment.adminName}</span>
                         <span className="text-[10px] text-slate-600">{formatDateTime(comment.createdAt)}</span>
@@ -602,7 +627,7 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
                 )}
                 {events.map((event) => (
                   <div key={event.id} className="relative flex gap-3 rounded-xl border border-white/[0.05] bg-white/[0.02] p-3">
-                    <div className="relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-[#0d131c]">
+                    <div className="relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-[#0c2139]">
                       {eventIcon(event.eventType)}
                     </div>
                     <div className="min-w-0 flex-1">
@@ -617,7 +642,7 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
                 ))}
                 {legacyHistory.map((entry) => (
                   <div key={`legacy-${entry.id}`} className="relative flex gap-3 rounded-xl border border-white/[0.05] bg-white/[0.02] p-3">
-                    <div className="relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-emerald-500/15 bg-[#0d131c]">
+                    <div className="relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-emerald-500/15 bg-[#0c2139]">
                       <CheckCircle2 size={15} className="text-emerald-400" />
                     </div>
                     <div className="min-w-0 flex-1">

@@ -48,6 +48,11 @@ export interface Application {
   azkCode?: string;
   region?: Region;
   deadline?: string;
+  customerSiteId?: string;
+  contractorStage?: string;
+  awaitingAct?: boolean;
+  hasProblem?: boolean;
+  problemComment?: string;
 }
 
 export interface Act {
@@ -130,6 +135,7 @@ export interface SearchResult {
   title: string;
   subtitle: string;
   number: string;
+  applicationId?: string;
 }
 
 export interface CalendarEvent {

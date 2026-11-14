@@ -42,7 +42,7 @@ function TelegramImage({ src, alt, className }: { src: string; alt: string; clas
 
 function DetailRow({ label, value, mono }: { label: string; value: React.ReactNode; mono?: boolean }) {
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className="flex min-w-0 flex-col gap-0.5 break-words">
       <span className="text-xs text-slate-500">{label}</span>
       <span className={`text-sm text-slate-200 ${mono ? 'font-mono' : ''}`}>{value ?? '—'}</span>
     </div>
@@ -249,8 +249,10 @@ function ActDetailModal({
   const [saving, setSaving] = useState<'approved' | 'rejected' | null>(null);
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
   const [rejectReason,setRejectReason]=useState("");
+  const [reviewError, setReviewError] = useState('');
 
   const handleApprove = async () => {
+    setReviewError('');
     setSaving('approved');
     try {
       await onStatusChange(act.id, 'approved');
@@ -258,6 +260,7 @@ function ActDetailModal({
       showToast('Акт підтверджено', 'success');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Помилка оновлення статусу';
+      setReviewError(msg);
       showToast(msg, 'error');
     } finally {
       setSaving(null);
@@ -265,6 +268,7 @@ function ActDetailModal({
   };
 
   const handleReject = async () => {
+    setReviewError('');
     if(rejectReason.trim().length<3){showToast("Напишіть причину повернення акта", "error");return;}
     setShowRejectConfirm(false);
     setSaving('rejected');
@@ -274,6 +278,7 @@ function ActDetailModal({
       showToast('Акт відхилено', 'success');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Помилка оновлення статусу';
+      setReviewError(msg);
       showToast(msg, 'error');
     } finally {
       setSaving(null);
@@ -283,18 +288,18 @@ function ActDetailModal({
   const modal = (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-[#141720] border border-white/10 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
-        <div className="sticky top-0 bg-[#141720] border-b border-white/5 px-6 py-4 flex items-center justify-between z-10">
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-blue-400 font-semibold">Первинний акт {act.actNumber ?? '—'}</span>
+      <div role="dialog" aria-modal="true" aria-label={`Первинний акт ${act.actNumber ?? ''}`} className="relative flex min-w-0 flex-col bg-[#141720] border border-white/10 rounded-2xl w-full max-w-2xl max-h-[90dvh] overflow-hidden shadow-2xl">
+        <div className="shrink-0 bg-[#141720] border-b border-white/5 px-4 sm:px-6 py-4 flex items-start justify-between gap-3 z-10">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <span className="break-all text-sm text-blue-400 font-semibold">Первинний акт {act.actNumber ?? '—'}</span>
             <StatusBadge label={actStatusLabel(currentStatus)} className={getActStatusColor(currentStatus)} />
           </div>
-          <button onClick={onClose} className="text-slate-500 hover:text-slate-300 transition-colors p-1 rounded-lg hover:bg-white/5">
+          <button onClick={onClose} aria-label="Закрити акт" className="shrink-0 text-slate-500 hover:text-slate-300 transition-colors p-1 rounded-lg hover:bg-white/5">
             <X size={18} />
           </button>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-6">
           {/* Application */}
           <section>
             <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Заявка</h3>
@@ -304,12 +309,12 @@ function ActDetailModal({
                 <span className="flex items-center gap-1"><Hash size={12} className="text-slate-500" />{act.applicationAzkCode ?? '—'}</span>
               } />
               <DetailRow label="Об'єкт" value={act.applicationTitle} />
-              <div className="col-span-2">
+              <div className="sm:col-span-2">
                 <DetailRow label="Адреса" value={
                   <span className="flex items-center gap-1"><MapPin size={12} className="text-slate-500 shrink-0" />{act.applicationAddress ?? '—'}</span>
                 } />
               </div>
-              <div className="col-span-2">
+              <div className="sm:col-span-2">
                 <DetailRow label="Опис / потреба" value={act.applicationDescription ?? '—'} />
               </div>
             </div>
@@ -322,7 +327,7 @@ function ActDetailModal({
             <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Підрядник</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <DetailRow label="ПІБ" value={
-                <span className="flex items-center gap-1"><User size={12} className="text-slate-500" />{act.contractorName}</span>
+                <span className="flex items-center gap-1"><User size={12} className="text-slate-500" />{act.contractorId ? act.contractorName : 'Не призначено'}</span>
               } />
               <DetailRow label="Телефон" value={
                 act.contractorPhone ? (
@@ -365,11 +370,13 @@ function ActDetailModal({
         </div>
 
         {/* Action buttons */}
-        <div className="sticky bottom-0 bg-[#141720] border-t border-white/5 px-6 py-4 flex items-center gap-3">
+        <div className="shrink-0 bg-[#141720] border-t border-white/5 px-4 sm:px-6 py-4">
+          {reviewError && <p role="alert" className="mb-3 rounded-lg border border-red-500/25 bg-red-500/10 p-3 text-sm text-red-200 break-words">{reviewError}</p>}
+          <div role="group" aria-label="Дії з актом" className="grid grid-cols-2 sm:grid-cols-[1fr_1fr_auto] gap-2">
           <button
             onClick={handleApprove}
             disabled={saving !== null || currentStatus !== 'pending'}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex min-w-0 min-h-11 items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {saving === 'approved' ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
             Підтвердити
@@ -377,17 +384,18 @@ function ActDetailModal({
           <button
             onClick={() => setShowRejectConfirm(true)}
             disabled={saving !== null || currentStatus !== 'pending'}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex min-w-0 min-h-11 items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {saving === 'rejected' ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}
             Відхилити
           </button>
           <button
             onClick={onClose}
-            className="ml-auto px-4 py-2 rounded-lg text-sm font-medium text-slate-300 bg-white/5 hover:bg-white/10 transition-colors"
+            className="col-span-2 sm:col-span-1 min-h-11 px-4 py-2 rounded-lg text-sm font-medium text-slate-300 bg-white/5 hover:bg-white/10 transition-colors"
           >
             Закрити
           </button>
+          </div>
         </div>
       </div>
 

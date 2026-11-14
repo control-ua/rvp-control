@@ -76,6 +76,16 @@ const acts = [
   },
 ];
 const qaParams = new URLSearchParams(location.search);
+if (qaParams.get('fixture') === 'object-history') {
+  apps[4].customer_site_id=other.id;apps[4].title=other.label;
+  acts.length=0;
+  for (const i of [0,2,6]) {
+    apps[i].status='completed';apps[i].has_problem=false;apps[i].problem_comment=null;apps[i].contractor_stage='accepted';
+    apps[i].actual_volume=i===0?null:10;apps[i].created_at=date(-72+i);
+    acts.push({id:`60000000-0000-0000-0000-${String(i+10).padStart(12,'0')}`,act_number:`A-DEMO-${i+1}`,
+      application_id:apps[i].id,status:'approved',created_at:date(-48+i),contractor_id:'c1',contractor:apps[i].contractor,application:apps[i],act_files:[]});
+  }
+}
 if(qaParams.get('fixture') === 'office-act') {
   apps[3].contractor_id=null;apps[3].contractor=null;
   acts[0].contractor_id=null as any;acts[0].contractor=null;
@@ -122,6 +132,14 @@ window.fetch = async (input, init) => {
       return json({ networks: ["UPG", "WOG"] });
     if (b.action === "office.site")
       return json({ site: b.site === sid ? site : other });
+    if (b.action === "office.site_history") {
+      const target=b.site===other.id?other:site;
+      const all=apps.filter(a=>a.customer_site_id===target.id).map(a=>({...a,
+        acts:acts.filter(act=>act.application_id===a.id),
+        work_history:a.status==='completed'?[{completed_at:date(-6)}]:[],
+      }));
+      return json({site:target,applications:all.slice((b.page||0)*50,(b.page||0)*50+50),total:all.length,more:false});
+    }
     if (b.action === "office.sites")
       return json({
         sites: [site, other].filter(

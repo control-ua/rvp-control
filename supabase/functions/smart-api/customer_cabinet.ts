@@ -257,9 +257,14 @@ export function makeCustomerCabinet(o: Options) {
       }
       if (kind === "cv" && draft.address && draft.azkCode && draft.city && draft.network &&
           SEPTIC_VOLUMES.some(volume => String(volume) === value)) {
-        const key = requireData(await db.rpc("rpv_customer_save_passport_v2",{
+        const saved = await db.rpc("rpv_customer_save_passport_v2",{
           p_user:id,p_state:state,p_capacity:Number(value),
-        }));
+        });
+        if (saved.error?.code === '23505') {
+          const closed = await o.setSession(id, STATE);
+          return await send(id,'Ця АЗК уже зареєстрована. Зверніться до офісу, щоб отримати доступ до її паспорта.',closed ? MENU : PASSPORT_MENU);
+        }
+        const key = requireData(saved);
         if (!key) return await openCabinet(id);
         return await send(id,`Паспорт збережено. Код АЗК: ${draft.azkCode}\nПереглянути паспорт можна в розділі «Мої об’єкти».`,MENU);
       }
@@ -418,6 +423,7 @@ export function makeCustomerCabinet(o: Options) {
   async function officeSiteList(id: number, kind: "find" | "customer", value: string, page: number) {
     const byCustomer = kind === "customer";
     let query = db.from(byCustomer ? "rpv_customer_visible_sites" : "rpv_customer_sites").select(SITE_FIELDS);
+    if (!byCustomer) query = query.is('merged_into', null);
     if (byCustomer) {
       query = query.eq("telegram_id",Number(value));
     } else if (AZK_CODE.test(value)) {
@@ -452,7 +458,8 @@ export function makeCustomerCabinet(o: Options) {
   }
 
   async function officeSiteCard(id: number, site: string, call: boolean) {
-    const row = requireData(await db.from("rpv_customer_sites").select(SITE_FIELDS).eq("id",site).maybeSingle());
+    let row = requireData(await db.from("rpv_customer_sites").select(SITE_FIELDS+',merged_into').eq("id",site).maybeSingle());
+    if (row?.merged_into) row = requireData(await db.from("rpv_customer_sites").select(SITE_FIELDS).eq("id",row.merged_into).maybeSingle());
     const back = [officeButton("🔎 Новий пошук","find"),officeButton("↩️ Замовники","home")];
     if (!row) return await send(id,"Об’єкт не знайдено.",{inline_keyboard:[back]});
     const contact = await siteRegistrant(row.site_key);

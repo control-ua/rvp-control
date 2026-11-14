@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import { ArrowRight } from "lucide-react";
 import { portal, type Customer, type Site, type Application } from "./api";
 import { Pager } from "./Portal";
+import CustomerDetails, { SitePassport } from "./CustomerDetails";
 import "./portal.css";
 export default function Customers() {
   const [tab, setTab] = useState("pending"),
@@ -13,6 +15,8 @@ export default function Customers() {
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [canManage, setCanManage] = useState(false),
+    [openedCustomer, setOpenedCustomer] = useState<Customer | null>(null),
+    [passport, setPassport] = useState<Site | null>(null),
     [selected, setSelected] = useState<Site | null>(null),
     [apps, setApps] = useState<Application[]>([]),
     [appPage, setAppPage] = useState(0),
@@ -104,6 +108,8 @@ export default function Customers() {
       setBusy(false);
     }
   }
+  if (openedCustomer) return <CustomerDetails key={openedCustomer.telegram_id} customer={openedCustomer} onBack={() => setOpenedCustomer(null)} />;
+  if (passport) return <div className="rpv-office"><SitePassport site={passport} onBack={() => setPassport(null)} /></div>;
   return (
     <div className="rpv-office">
       <h1>Замовники</h1>
@@ -155,7 +161,10 @@ export default function Customers() {
           </form>
           {sites.map((s) => (
             <article key={s.id}>
-              <h2>{s.label}</h2>
+              <h2><button className="rpv-card-open" onClick={() => setPassport(s)}>
+                <span>{s.label}<small>Відкрити паспорт об’єкта</small></span>
+                <ArrowRight size={20} aria-hidden="true" />
+              </button></h2>
               <p>{s.region}</p>
               <p>{s.address}</p>
               <p>Септик: {s.capacity_m3 ?? "—"} м³</p>
@@ -207,8 +216,10 @@ export default function Customers() {
         customers.map((c) => (
           <article key={c.telegram_id}>
             <h2>
-              {[c.first_name, c.last_name].filter(Boolean).join(" ") ||
-                "Без імені"}
+              <button className="rpv-card-open" onClick={() => setOpenedCustomer(c)}>
+                <span>{[c.first_name, c.last_name].filter(Boolean).join(" ") || "Без імені"}<small>Об’єкти та паспорти АЗК</small></span>
+                <ArrowRight size={20} aria-hidden="true" />
+              </button>
             </h2>
             <p>
               <a href={`tel:${c.phone}`}>{c.phone}</a>

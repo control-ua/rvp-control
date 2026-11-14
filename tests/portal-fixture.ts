@@ -81,13 +81,26 @@ window.fetch = async (input, init) => {
         status: b.status,
         updated_at: "2026-11-10T00:00:00Z",
       },
+      {
+        telegram_id: 124,
+        first_name: "Менеджер без об’єктів",
+        last_name: "",
+        username: null,
+        phone: "+380000000001",
+        status: b.status,
+        updated_at: "2026-11-10T00:00:00Z",
+      },
     ];
     return new Response(
       JSON.stringify(
         b.action === "office.list"
           ? { customers, more: false, canManage: true }
           : b.action === "office.sites"
-            ? { sites: [site], more: false }
+            ? b.user === 124
+              ? { sites: [], more: false }
+              : b.user === 123 && b.page === 1
+                ? { sites: [{ ...site, id: "40000000-0000-0000-0000-000000000002", code: "0014", label: "АЗК WOG 0014", capacity_m3: null }], more: false }
+                : { sites: [site], more: b.user === 123 }
             : b.action === "office.applications"
               ? {
                   applications: [{ ...app, customer_site_id: null }],

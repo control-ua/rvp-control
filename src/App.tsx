@@ -307,7 +307,7 @@ function App() {
       case 'applications': return <Applications onOpenApplication={openApplicationCenter} dashboardFilter={applicationFilter} onDashboardFilterChange={setApplicationFilter} />;
       case 'contractors': return <Contractors initialId={route.record} onRecordClose={closeRecord} />;
       case 'customers': return <Customers key="managers" onOpenSite={site => changeRoute({ page: 'objects', site: site.id, network: site.passport_network || undefined })} />;
-      case 'objects': return route.site ? <ObjectProfile key={route.site} id={route.site} onBack={() => changeRoute({ page: 'objects', network: route.network })} onOpenApplication={openApplicationCenter} /> : <Customers key="objects" mode="objects" initialNetwork={route.network} onNetworkChange={network => changeRoute({ page: 'objects', network: network || undefined }, true)} onOpenSite={site => changeRoute({ page: 'objects', network: site.passport_network || undefined, site: site.id })} />;
+      case 'objects': return route.site ? <ObjectProfile key={route.site} id={route.site} onBack={() => changeRoute({ page: 'objects', network: route.network })} onOpenApplication={openApplicationCenter} onOpenAct={record => changeRoute({ page: 'acts', record })} /> : <Customers key="objects" mode="objects" initialNetwork={route.network} onNetworkChange={network => changeRoute({ page: 'objects', network: network || undefined }, true)} onOpenSite={site => changeRoute({ page: 'objects', network: site.passport_network || undefined, site: site.id })} />;
       case 'acts': return <Acts initialId={route.record} onRecordClose={closeRecord} />;
       case 'payouts': return <Payouts focusedApplication={route.record} onClearFocus={closeRecord} />;
       case 'statistics': return <Statistics />;

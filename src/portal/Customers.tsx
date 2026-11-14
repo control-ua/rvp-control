@@ -4,15 +4,15 @@ import { portal, type Customer, type Site, type Application } from "./api";
 import { Pager } from "./Portal";
 import CustomerDetails, { SitePassport } from "./CustomerDetails";
 import "./portal.css";
-export default function Customers() {
-  const [tab, setTab] = useState("active"),
+export default function Customers({ mode = "managers", initialNetwork = "", onNetworkChange, onOpenSite }: { mode?: "managers" | "objects"; initialNetwork?: string; onNetworkChange?: (network: string) => void; onOpenSite?: (site: Site) => void }) {
+  const [tab, setTab] = useState(mode === "objects" ? "sites" : "active"),
     [customers, setCustomers] = useState<Customer[]>([]),
     [sites, setSites] = useState<Site[]>([]),
     [page, setPage] = useState(0),
     [more, setMore] = useState(false),
     [query, setQuery] = useState(""),
     [searched, setSearched] = useState(""),
-    [network, setNetwork] = useState(""),
+    [network, setNetwork] = useState(initialNetwork),
     [networks, setNetworks] = useState<string[]>([]),
     [networksLoading, setNetworksLoading] = useState(false),
     [networksError, setNetworksError] = useState(""),
@@ -26,6 +26,9 @@ export default function Customers() {
     [apps, setApps] = useState<Application[]>([]),
     [appPage, setAppPage] = useState(0),
     [appsMore, setAppsMore] = useState(false);
+  useEffect(() => {
+    if (mode === "objects") { setNetwork(initialNetwork); setPage(0); }
+  }, [initialNetwork, mode]);
   const listRequest = useRef(0);
   const refresh = () => {
     const request = ++listRequest.current;
@@ -144,13 +147,14 @@ export default function Customers() {
       setBusy(false);
     }
   }
-  if (openedCustomer) return <CustomerDetails key={openedCustomer.telegram_id} customer={openedCustomer} onBack={() => setOpenedCustomer(null)} />;
+  if (openedCustomer) return <CustomerDetails key={openedCustomer.telegram_id} customer={openedCustomer} onBack={() => setOpenedCustomer(null)} onOpenSite={onOpenSite} />;
   if (passport) return <div className="rpv-office"><SitePassport site={passport} onBack={() => setPassport(null)} /></div>;
   return (
     <div className="rpv-office">
-      <h1>Менеджери АЗК</h1>
-      <p>Зареєстровані менеджери, їхні об’єкти та паспорти АЗК.</p>
-      <nav className="rpv-tabs">
+      <p className="ws-eyebrow">{mode === "objects" ? "МЕРЕЖІ ТА ОБ’ЄКТИ" : "КОНТАКТИ МЕРЕЖІ"}</p>
+      <h1>{mode === "objects" ? "Об’єкти" : "Менеджери АЗК"}</h1>
+      <p>{mode === "objects" ? "Оберіть мережу, відкрийте АЗК — паспорт і заявки завжди поруч." : "Зареєстровані менеджери, їхні об’єкти та паспорти АЗК."}</p>
+      {mode === "managers" && <nav className="rpv-tabs">
         {[
           ["active", "Зареєстровані"],
           ["pending", "Запити"],
@@ -170,7 +174,7 @@ export default function Customers() {
             {label}
           </button>
         ))}
-      </nav>
+      </nav>}
       {error && (
         <p className="rpv-error" role="alert">
           {error}
@@ -181,13 +185,14 @@ export default function Customers() {
           <label className="rpv-network-filter">
             Мережа АЗК
             <select aria-label="Мережа АЗК" value={network} disabled={networksLoading} onChange={(e) => {
-              setNetwork(e.target.value); setQuery(""); setSearched(""); setPage(0); setSites([]); setMore(false); setSelected(null);
+              setNetwork(e.target.value); onNetworkChange?.(e.target.value); setQuery(""); setSearched(""); setPage(0); setSites([]); setMore(false); setSelected(null);
             }}>
               <option value="">{networksLoading ? "Завантажуємо мережі…" : "Оберіть мережу"}</option>
               {networks.map((name) => <option key={name} value={name}>{name}</option>)}
             </select>
           </label>
           {networksError && <p className="rpv-error" role="alert">{networksError}</p>}
+          <div className="ws-network-cards" aria-label="Мережі">{networks.map(name => <button key={name} className={network === name ? "active" : ""} aria-pressed={network === name} onClick={() => { setNetwork(name); onNetworkChange?.(name); setQuery(""); setSearched(""); setPage(0); setSites([]); setSelected(null); setMore(false); }}>{name}<ArrowRight size={16} /></button>)}</div>
           {!network && !searched && <p>Оберіть мережу — відкриється список її АЗК.</p>}
           <form
             className="rpv-office-form"
@@ -211,14 +216,14 @@ export default function Customers() {
           {!busy && !error && (network || searched) && !sites.length && <p>АЗК за цим фільтром не знайдено.</p>}
           {sites.map((s) => (
             <article key={s.id}>
-              <h2><button className="rpv-card-open" onClick={() => setPassport(s)}>
+              <h2><button className="rpv-card-open" onClick={() => onOpenSite ? onOpenSite(s) : setPassport(s)}>
                 <span>{s.label}<small>Відкрити паспорт об’єкта</small></span>
                 <ArrowRight size={20} aria-hidden="true" />
               </button></h2>
               <p>{s.region}</p>
               <p>{s.address}</p>
               <p>Септик: {s.capacity_m3 ?? "—"} м³</p>
-              <div className="rpv-office-actions">
+              <details className="rpv-office-actions"><summary>Додаткові дії</summary>
                 <button
                   disabled={busy}
                   onClick={() => {
@@ -228,7 +233,7 @@ export default function Customers() {
                 >
                   Прив’язати заявку
                 </button>
-              </div>
+              </details>
             </article>
           ))}
           {selected && (
@@ -303,9 +308,7 @@ export default function Customers() {
                     </button>
                   </>
                 )}
-                <button disabled={busy} onClick={() => decide(c, "reset")}>
-                  Скинути реєстрацію
-                </button>
+                <details><summary>Керування доступом</summary><button disabled={busy} onClick={() => decide(c, "reset")}>Скинути реєстрацію</button></details>
               </div>
             )}
           </article>

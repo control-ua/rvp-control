@@ -11,6 +11,7 @@ interface Props {
 export default function GlobalSearchOverlay({ onClose, onNavigate }: Props) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<number | null>(null);
@@ -21,19 +22,21 @@ export default function GlobalSearchOverlay({ onClose, onNavigate }: Props) {
   }, []);
 
   useEffect(() => {
+    let active = true;
     if (timerRef.current) window.clearTimeout(timerRef.current);
-    if (query.trim().length < 2) { setResults([]); return; }
+    setResults([]); setError('');
+    if (query.trim().length < 2) { setLoading(false); return; }
 
     setLoading(true);
     timerRef.current = window.setTimeout(async () => {
       try {
         const r = await globalSearch(query);
-        setResults(r);
-      } catch { setResults([]); }
-      finally { setLoading(false); }
+        if (active) setResults(r);
+      } catch { if (active) setError('Пошук тимчасово недоступний. Спробуйте ще раз.'); }
+      finally { if (active) setLoading(false); }
     }, 300);
 
-    return () => { if (timerRef.current) window.clearTimeout(timerRef.current); };
+    return () => { active = false; if (timerRef.current) window.clearTimeout(timerRef.current); };
   }, [query]);
 
   const handleClick = (r: SearchResult) => {
@@ -49,25 +52,25 @@ export default function GlobalSearchOverlay({ onClose, onNavigate }: Props) {
   return (
     <div className="fixed inset-0 z-[200] flex items-start justify-center pt-[10vh] px-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-xl rounded-2xl border border-white/10 bg-[#141821] shadow-2xl">
+      <div role="dialog" aria-modal="true" aria-label="Пошук у системі" className="relative w-full max-w-xl rounded-2xl border border-white/10 bg-[#0c2139] shadow-2xl">
         <div className="flex items-center gap-3 border-b border-white/5 px-5 py-4">
           <Search size={18} className="text-slate-500" />
           <input
             ref={inputRef}
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Пошук: заявки, підрядники, акти..."
+            placeholder="Номер заявки, адреса, виконавець, акт…"
             className="flex-1 bg-transparent text-sm text-slate-200 outline-none"
             onKeyDown={e => { if (e.key === 'Escape') onClose(); }}
           />
           {loading && <Loader2 size={16} className="animate-spin text-slate-500" />}
-          <button onClick={onClose} className="text-slate-500 hover:text-slate-300">
+          <button aria-label="Закрити пошук" onClick={onClose} className="text-slate-500 hover:text-slate-300">
             <X size={18} />
           </button>
         </div>
 
         <div className="max-h-[50vh] overflow-y-auto p-2">
-          {query.trim().length < 2 ? (
+          {error ? <p role="alert" className="ws-error">{error}</p> : query.trim().length < 2 ? (
             <div className="py-12 text-center">
               <Search size={28} className="mx-auto text-slate-600" />
               <p className="mt-3 text-sm text-slate-500">Введіть мінімум 2 символи для пошуку</p>
@@ -94,7 +97,7 @@ export default function GlobalSearchOverlay({ onClose, onNavigate }: Props) {
               )}
               {contractors.length > 0 && (
                 <div className="mb-2">
-                  <p className="px-3 py-2 text-xs font-medium uppercase tracking-wider text-slate-600">Підрядники</p>
+                  <p className="px-3 py-2 text-xs font-medium uppercase tracking-wider text-slate-600">Виконавці</p>
                   {contractors.map(r => (
                     <button key={r.id} onClick={() => handleClick(r)} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-white/5">
                       <Users size={16} className="text-emerald-400" />

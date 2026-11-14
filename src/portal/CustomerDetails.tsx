@@ -28,7 +28,7 @@ export function SitePassport({ site, onBack }: { site: Site; onBack: () => void 
   );
 }
 
-export default function CustomerDetails({ customer, onBack }: { customer: Customer; onBack: () => void }) {
+export default function CustomerDetails({ customer, onBack, onOpenSite }: { customer: Customer; onBack: () => void; onOpenSite?: (site: Site) => void }) {
   const [sites, setSites] = useState<Site[]>([]);
   const [page, setPage] = useState(0);
   const [more, setMore] = useState(false);
@@ -96,7 +96,7 @@ export default function CustomerDetails({ customer, onBack }: { customer: Custom
           {!loading && !error && !sites.length && <p>{network ? "АЗК цієї мережі у менеджера немає." : "Закріплених об’єктів поки немає."}</p>}
           {sites.map((s) => (
             <article key={s.id}>
-              <h2><button className="rpv-card-open" onClick={() => setSelected(s)}>
+              <h2><button className="rpv-card-open" onClick={() => onOpenSite ? onOpenSite(s) : setSelected(s)}>
                 <span>АЗК {s.passport_network} {s.code}<small>Відкрити паспорт об’єкта</small></span>
                 <ArrowRight size={20} aria-hidden="true" />
               </button></h2>

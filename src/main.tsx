@@ -8,6 +8,7 @@ const isPortal =
   cabinet === "contractor" ||
   !!window.Telegram?.WebApp?.initData;
 import "./index.css";
+import "./workspace/workspace.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>{isPortal ? <Portal /> : <App />}</StrictMode>,

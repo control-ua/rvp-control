@@ -33,6 +33,11 @@ interface ApplicationRow {
   created_at: string;
   contractor_id: string | null;
   contractor: ContractorRow | null;
+  customer_site_id: string | null;
+  contractor_stage: string | null;
+  awaiting_act: boolean | null;
+  has_problem: boolean | null;
+  problem_comment: string | null;
 }
 
 const APPLICATION_SELECT = `
@@ -57,6 +62,7 @@ const APPLICATION_SELECT = `
   paid_at,
   created_at,
   contractor_id,
+  customer_site_id, contractor_stage, awaiting_act, has_problem, problem_comment,
   contractor:contractors (
     id,
     first_name,
@@ -107,24 +113,32 @@ function mapRowToApplication(row: ApplicationRow): Application {
     payoutReceiptType: row.payout_receipt_type ?? undefined,
     azkCode: row.azk_code ?? undefined,
     deadline: row.deadline_at ?? undefined,
+    customerSiteId: row.customer_site_id ?? undefined,
+    contractorStage: row.contractor_stage ?? undefined,
+    awaitingAct: !!row.awaiting_act,
+    hasProblem: !!row.has_problem,
+    problemComment: row.problem_comment ?? undefined,
   };
 }
 
-export async function fetchApplications(): Promise<Application[]> {
-  const { data, error } = await supabase
-    .from('applications')
-    .select(APPLICATION_SELECT)
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    throw new Error(`Не вдалося завантажити заявки: ${error.message}`);
+export async function fetchApplications(siteId?: string): Promise<Application[]> {
+  const rows: ApplicationRow[] = [];
+  for (let offset = 0; ; offset += 500) {
+    let query = supabase.from('applications').select(APPLICATION_SELECT)
+      .order('created_at', { ascending: false }).order('id').range(offset, offset + 499);
+    if (siteId) query = query.eq('customer_site_id', siteId);
+    const { data, error } = await query;
+    if (error) throw new Error(`Не вдалося завантажити заявки: ${error.message}`);
+    rows.push(...(data ?? []) as unknown as ApplicationRow[]);
+    if (!data || data.length < 500) break;
   }
+  return rows.map(mapRowToApplication);
+}
 
-  if (!data || data.length === 0) {
-    return [];
-  }
-
-  return (data as unknown as ApplicationRow[]).map(mapRowToApplication);
+export async function fetchApplication(id: string): Promise<Application> {
+  const { data, error } = await supabase.from('applications').select(APPLICATION_SELECT).eq('id', id).single();
+  if (error || !data) throw new Error('Заявка недоступна. Оновіть список і перевірте доступ.');
+  return mapRowToApplication(data as unknown as ApplicationRow);
 }
 
 export interface NewApplicationInput {

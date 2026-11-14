@@ -107,7 +107,7 @@ async function dispatch(req: Request, b: any): Promise<any> {
   if (String(b.action || "").startsWith("office.")) {
     const admin = await office(
       req,
-      !["office.list", "office.sites", "office.networks", "office.applications"].includes(
+      !["office.list", "office.site", "office.sites", "office.networks", "office.applications"].includes(
         b.action,
       ),
     );
@@ -136,6 +136,11 @@ async function dispatch(req: Request, b: any): Promise<any> {
         more: rows.length > 50,
         canManage: ["owner", "admin", "dispatcher"].includes(admin.role),
       };
+    }
+    if (b.action === "office.site") {
+      const row = result(await db.from("rpv_customer_sites").select(sitesFields).eq("id", uuid(b.site)).maybeSingle());
+      if (!row) throw new PortalError(404, "Об’єкт недоступний.");
+      return { site: site(row) };
     }
     if (b.action === "office.sites" || b.action === "office.networks") {
       const table = b.user === undefined ? "rpv_customer_sites" : "rpv_customer_visible_sites";

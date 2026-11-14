@@ -236,7 +236,7 @@ function ContractorProfileModal({
   return createPortal(modal, document.body);
 }
 
-export default function Contractors() {
+export default function Contractors({ initialId, onRecordClose }: { initialId?: string; onRecordClose?: () => void }) {
   const { showToast } = useApp();
   const [contractors, setContractors] = useState<ContractorListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -247,6 +247,10 @@ export default function Contractors() {
   const [toEdit, setToEdit] = useState<ContractorListItem | null>(null);
   const [adminUpdating, setAdminUpdating] = useState(false);
 
+  useEffect(() => { if (!initialId) setSelected(null); }, [initialId]);
+  useEffect(() => {
+    if (initialId && contractors.length) setSelected(contractors.find(c => c.id === initialId) || null);
+  }, [initialId, contractors]);
   const loadContractors = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -338,7 +342,7 @@ export default function Contractors() {
   return (
     <>
       <PageHeader
-        pageTitle="Підрядники"
+        pageTitle="Виконавці"
         pageSubtitle={`${contractors.length} підрядників`}
         actions={
           <button
@@ -562,7 +566,7 @@ export default function Contractors() {
       {selected && (
         <ContractorProfileModal
           contractor={selected}
-          onClose={() => setSelected(null)}
+          onClose={() => { setSelected(null); onRecordClose?.(); }}
           onEdit={() => { setToEdit(selected); }}
           onToggle={handleToggleFromProfile}
           onToggleAdmin={handleToggleAdmin}

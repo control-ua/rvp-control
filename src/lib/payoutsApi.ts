@@ -17,9 +17,11 @@ export interface PayoutItem {
   receiptUrl: string | null;
   applicationTitle: string;
   applicationAddress: string | null;
+  applicationStatus: ApplicationStatus;
 }
 
 interface PayoutRow {
+  status: string;
   id: string;
   application_number: string | null;
   title: string;
@@ -37,6 +39,7 @@ interface PayoutRow {
 const PAYOUT_SELECT = `
   id,
   application_number,
+  status,
   title,
   address,
   payout_amount,
@@ -81,6 +84,7 @@ export async function fetchPayouts(): Promise<PayoutItem[]> {
     receiptUrl: row.payout_receipt_file_id ? telegramFileUrl(row.payout_receipt_file_id) : null,
     applicationTitle: row.title,
     applicationAddress: row.address ?? null,
+    applicationStatus: normalizeStatus(row.status),
   }));
 }
 

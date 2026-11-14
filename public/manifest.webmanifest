@@ -1,14 +1,14 @@
 {
-  "name": "RVP Control",
-  "short_name": "RVP",
-  "description": "Операційний центр RVP Control",
+  "name": "RPV Control",
+  "short_name": "RPV",
+  "description": "Операційний центр RPV Control",
   "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#0d0f14",
-  "theme_color": "#0d0f14",
+  "background_color": "#071526",
+  "theme_color": "#071526",
   "icons": [
     {
       "src": "./icon-192.png",

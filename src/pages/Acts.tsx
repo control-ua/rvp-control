@@ -427,13 +427,17 @@ function ActDetailModal({
   return createPortal(modal, document.body);
 }
 
-export default function Acts() {
+export default function Acts({ initialId, onRecordClose }: { initialId?: string; onRecordClose?: () => void }) {
   const { showToast } = useApp();
   const [acts, setActs] = useState<ActItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<ActItem | null>(null);
 
+  useEffect(() => { if (!initialId) setSelected(null); }, [initialId]);
+  useEffect(() => {
+    if (initialId && acts.length) setSelected(acts.find(a => a.id === initialId) || null);
+  }, [initialId, acts]);
   const loadActs = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -553,7 +557,7 @@ export default function Acts() {
       {selected && (
         <ActDetailModal
           act={selected}
-          onClose={() => setSelected(null)}
+          onClose={() => { setSelected(null); onRecordClose?.(); }}
           onStatusChange={handleStatusChange}
         />
       )}

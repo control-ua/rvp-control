@@ -11,16 +11,14 @@ export default function ServiceResult({app,onClose,onDone}:{app:Application;onCl
   if(!saved){await portal('contractor.report',{application:app.id,version:app.updated_at,date,volume:without?null:Number(volume.replace(',','.')),notes});setSaved(true);}
   await uploadResult(app.id,key.current,file);onDone();
  }catch(e){setError((e as Error).message);}finally{pending.current=false;setBusy(false);}}
- return <div className="rpv-modal-backdrop"><div ref={dialog} className="rpv-card rpv-create" role="dialog" aria-modal="true" aria-labelledby="service-result-title"><div className="rpv-section-title"><h2 id="service-result-title">Результат · {app.application_number}</h2><button type="button" disabled={busy} onClick={onClose} aria-label="Закрити результат">✕</button></div>
- <p className="rpv-hint">Вкажіть фактичні дані. Після перевірки офісом акт і обсяг з’являться у замовника.</p>
+ return <div className="rpv-modal-backdrop"><div ref={dialog} className="rpv-card rpv-create" role="dialog" aria-modal="true" aria-labelledby="service-result-title"><div className="rpv-section-title"><h2 id="service-result-title">Первинний акт · {app.application_number}</h2><button type="button" disabled={busy} onClick={onClose} aria-label="Закрити результат">✕</button></div>
  <form onSubmit={submit}>
  <label htmlFor="service-volume">Фактично відкачано, м³</label><input id="service-volume" ref={first} inputMode="decimal" value={volume} disabled={busy||saved||without} onChange={e=>setVolume(e.target.value)} required={!without}/>
  <label><input type="checkbox" checked={without} disabled={busy||saved} onChange={e=>setWithout(e.target.checked)}/> Робота без відкачки</label>
  <label htmlFor="service-date">Дата виконання</label><input id="service-date" type="date" required min="2020-01-01" max={today} value={date} disabled={busy||saved} onChange={e=>setDate(e.target.value)}/>
  <label htmlFor="service-notes">Примітка / кількість рейсів</label><textarea id="service-notes" maxLength={2000} rows={3} value={notes} disabled={busy||saved} onChange={e=>setNotes(e.target.value)}/>
- <label htmlFor="service-file">Фото або PDF акта · до 5 МБ</label><input id="service-file" type="file" accept="application/pdf,image/jpeg,image/png" required disabled={busy} onChange={e=>setFile(e.target.files?.[0]||null)}/>
- <p className="rpv-hint">Копію файла бот надішле у ваш Telegram. Надсилання ще не означає прийняття роботи або проведення виплати.</p>
- {error&&<p role="alert" className="rpv-error">{error}</p>}{saved&&error&&<p className="rpv-hint">Дані збережено. Повторіть передавання файла. Для зміни даних закрийте форму та відкрийте її знову.</p>}
+ <label htmlFor="service-file">Первинний акт</label><input id="service-file" type="file" accept="application/pdf,image/jpeg,image/png" required disabled={busy} onChange={e=>setFile(e.target.files?.[0]||null)}/>
+ {error&&<p role="alert" className="rpv-error">{error}</p>}{saved&&error&&<p className="rpv-hint">Дані збережено. Повторіть завантаження акта.</p>}
  <div className="rpv-create-actions"><button type="button" disabled={busy} onClick={onClose}>Скасувати</button><button className="primary" disabled={busy||!file}>{busy?'Передаємо…':'Передати на перевірку'}</button></div>
  </form></div></div>;
 }

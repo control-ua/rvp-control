@@ -514,6 +514,37 @@
 .rpv-office article h2 {
   font-weight: 700;
 }
+.rpv-office button.rpv-card-open {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font-size: inherit;
+  font-weight: inherit;
+}
+.rpv-card-open span { min-width: 0; overflow-wrap: anywhere; }
+.rpv-card-open small {
+  display: block;
+  margin: 8px 0;
+  color: #8acbff;
+  font-size: 13px;
+  font-weight: 400;
+}
+.rpv-card-open svg { flex-shrink: 0; color: #8acbff; }
+.rpv-office button:focus-visible,
+.rpv-office a:focus-visible {
+  outline: 3px solid #45adff;
+  outline-offset: 4px;
+}
+.rpv-customer-sites-title { margin: 24px 0 16px; font-weight: 700; }
+.rpv-office-details { max-width: 850px; }
+.rpv-office .rpv-passport dd { color: #d3e4f7; overflow-wrap: anywhere; }
+.rpv-office .rpv-passport dt { color: #8ba3c1; }
 .rpv-office article p {
   font-size: 13px;
   margin: 7px 0;

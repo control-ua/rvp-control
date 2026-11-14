@@ -542,6 +542,8 @@
   outline-offset: 4px;
 }
 .rpv-customer-sites-title { margin: 24px 0 16px; font-weight: 700; }
+.rpv-office label.rpv-network-filter { margin: 20px 0 12px; font-size: 13px; }
+.rpv-network-filter select { display: block; width: 100%; max-width: 450px; margin-top: 8px; }
 .rpv-office-details { max-width: 850px; }
 .rpv-office .rpv-passport dd { color: #d3e4f7; overflow-wrap: anywhere; }
 .rpv-office .rpv-passport dt { color: #8ba3c1; }

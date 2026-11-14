@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowRight } from "lucide-react";
 import { portal, type Customer, type Site, type Application } from "./api";
 import { Pager } from "./Portal";
@@ -12,6 +12,11 @@ export default function Customers() {
     [more, setMore] = useState(false),
     [query, setQuery] = useState(""),
     [searched, setSearched] = useState(""),
+    [network, setNetwork] = useState(""),
+    [networks, setNetworks] = useState<string[]>([]),
+    [networksLoading, setNetworksLoading] = useState(false),
+    [networksError, setNetworksError] = useState(""),
+    [networkRevision, setNetworkRevision] = useState(0),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [canManage, setCanManage] = useState(false),
@@ -21,35 +26,51 @@ export default function Customers() {
     [apps, setApps] = useState<Application[]>([]),
     [appPage, setAppPage] = useState(0),
     [appsMore, setAppsMore] = useState(false);
+  const listRequest = useRef(0);
   const refresh = () => {
+    const request = ++listRequest.current;
     setBusy(true);
     setError("");
     return (
       tab === "sites"
-        ? searched
+        ? searched || network
           ? portal<{ sites: Site[]; more: boolean }>("office.sites", {
               query: searched,
+              network,
               page,
             }).then((r) => {
+              if (request !== listRequest.current) return;
               setSites(r.sites);
               setMore(r.more);
             })
-          : Promise.resolve()
+          : Promise.resolve().then(() => { setSites([]); setMore(false); })
         : portal<{ customers: Customer[]; more: boolean; canManage: boolean }>(
             "office.list",
             { status: tab, page },
           ).then((r) => {
+            if (request !== listRequest.current) return;
             setCustomers(r.customers);
             setMore(r.more);
             setCanManage(r.canManage);
           })
     )
-      .catch((e) => setError(e.message))
-      .finally(() => setBusy(false));
+      .catch((e) => { if (request === listRequest.current) { setError(e.message); setSites([]); setMore(false); } })
+      .finally(() => { if (request === listRequest.current) setBusy(false); });
   };
   useEffect(() => {
     void refresh();
-  }, [tab, page, searched]);
+  }, [tab, page, searched, network]);
+  useEffect(() => {
+    if (tab !== "sites") return;
+    let active = true;
+    setNetworksLoading(true);
+    setNetworksError("");
+    portal<{ networks: string[] }>("office.networks")
+      .then((r) => { if (active) setNetworks(r.networks); })
+      .catch((e) => { if (active) { setNetworksError(e.message); setNetworks([]); } })
+      .finally(() => { if (active) setNetworksLoading(false); });
+    return () => { active = false; };
+  }, [tab, networkRevision]);
   useEffect(() => {
     setApps([]);
     if (!selected) return;
@@ -142,6 +163,17 @@ export default function Customers() {
       )}
       {tab === "sites" ? (
         <>
+          <label className="rpv-network-filter">
+            Мережа АЗК
+            <select aria-label="Мережа АЗК" value={network} disabled={networksLoading} onChange={(e) => {
+              setNetwork(e.target.value); setQuery(""); setSearched(""); setPage(0); setSites([]); setMore(false); setSelected(null);
+            }}>
+              <option value="">{networksLoading ? "Завантажуємо мережі…" : "Оберіть мережу"}</option>
+              {networks.map((name) => <option key={name} value={name}>{name}</option>)}
+            </select>
+          </label>
+          {networksError && <p className="rpv-error" role="alert">{networksError}</p>}
+          {!network && !searched && <p>Оберіть мережу — відкриється список її АЗК.</p>}
           <form
             className="rpv-office-form"
             onSubmit={(e) => {
@@ -153,12 +185,15 @@ export default function Customers() {
           >
             <input
               aria-label="Пошук мережі або АЗК"
-              placeholder="Мережа латиницею або код АЗК"
+              placeholder={network ? "Код АЗК у вибраній мережі" : "Мережа латиницею або код АЗК"}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
             <button disabled={busy}>Знайти</button>
           </form>
+          {network && <h2 className="rpv-customer-sites-title">АЗК мережі {network}</h2>}
+          {busy && <p role="status">Завантажуємо АЗК…</p>}
+          {!busy && !error && (network || searched) && !sites.length && <p>АЗК за цим фільтром не знайдено.</p>}
           {sites.map((s) => (
             <article key={s.id}>
               <h2><button className="rpv-card-open" onClick={() => setPassport(s)}>
@@ -265,7 +300,7 @@ export default function Customers() {
         <p>Записів поки немає.</p>
       )}
       <Pager page={page} more={more} change={setPage} />
-      <button disabled={busy} onClick={refresh}>
+      <button disabled={busy} onClick={() => { void refresh(); setNetworkRevision((v) => v + 1); }}>
         Оновити
       </button>
     </div>

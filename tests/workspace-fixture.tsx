@@ -75,6 +75,13 @@ const acts = [
     act_files: [],
   },
 ];
+const qaParams = new URLSearchParams(location.search);
+if(qaParams.get('fixture') === 'office-act') {
+  apps[3].contractor_id=null;apps[3].contractor=null;
+  acts[0].contractor_id=null as any;acts[0].contractor=null;
+  acts[0].act_number='A-DEMO00B478F6509F4DB5';
+}
+let simulateReviewFailure=qaParams.get('reviewFailure') === '1';
 const primaryFiles = [{id:'70000000-0000-0000-0000-000000000001',act_id:acts[0].id,
  application_id:apps[3].id,storage_path:`${apps[3].id}/act/demo.pdf`,
  telegram_file_id:null,file_type:'document',file_name:'Первинний акт.pdf',category:'act',created_at:date()}];
@@ -104,6 +111,7 @@ window.fetch = async (input, init) => {
   if (url.pathname.endsWith('/smart-api')) {
     const b=JSON.parse(String(init?.body));
     if (b.action==='approve_act_from_web' && b.act_id===acts[0].id) {
+      if(simulateReviewFailure){simulateReviewFailure=false;return Response.json({error:'Перевірка помилки: повторіть підтвердження.'},{status:409});}
       acts[0].status='approved';apps[3].status='completed';apps[3].awaiting_act=false;
       return json({ok:true});
     }

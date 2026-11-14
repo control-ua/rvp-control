@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 
 import type { Application } from '@/types';
+import { completeApplicationWithAct } from '@/lib/actsApi';
 import StatusBadge from '@/components/StatusBadge';
 import { useApp } from '@/context/AppContext';
 import { formatCurrency, formatDateTime, getApplicationStatusColor } from '@/utils/helpers';
@@ -116,7 +117,6 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
   const [busy, setBusy] = useState<string | null>(null);
   const [hasProblem, setHasProblem] = useState(false);
   const [awaitingAct, setAwaitingAct] = useState(false);
-  const [completionNotice, setCompletionNotice] = useState(false);
   const [problemComment, setProblemComment] = useState('');
   const [deadlineValue, setDeadlineValue] = useState(toLocalInputValue(application.deadline));
   const [commentText, setCommentText] = useState('');
@@ -164,7 +164,6 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
   };
 
   useEffect(() => {
-    setCompletionNotice(false);
     setContractorId(application.contractorId || '');
     setDeadlineValue(toLocalInputValue(application.deadline));
     void loadExtra();
@@ -209,8 +208,7 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
   };
 
   const handleComplete = () => {
-    // Completion is committed by office act approval, never by a status toggle.
-    setCompletionNotice(true);
+    void runAction('complete', () => completeApplicationWithAct(application.id), 'Акт прийнято. Заявку завершено');
   };
 
   const handleDeadline = () => {
@@ -278,7 +276,7 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
       setSelectedFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       showToast('Первинний акт додано', 'success');
-      await loadExtra();
+      await refreshAll();
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Не вдалося завантажити файл', 'error');
     } finally {
@@ -411,13 +409,6 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
                     Первинний акт
                   </button>
                 </div>
-                {completionNotice && (
-                  <div role="status" className="mt-3 rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-200">
-                    {awaitingAct
-                      ? 'Первинний акт на перевірці.'
-                      : 'Для завершення потрібен первинний акт.'}
-                  </div>
-                )}
               </section>
 
               <section className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">
@@ -520,7 +511,7 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
               <section className="rounded-2xl border border-cyan-500/15 bg-cyan-500/[0.04] p-4">
                 <h3 className="text-sm font-semibold text-white">Первинний акт</h3>
                 {primaryActAction && <div className="ws-related mt-3">{primaryActAction}</div>}
-                <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                {isFinished ? <p className="mt-3 text-sm text-slate-400">Збережено в історії заявки</p> : <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
                   <button
                     onClick={() => fileInputRef.current?.click()}
                     className="min-h-11 truncate rounded-xl border border-white/10 bg-white/[0.03] px-3 text-left text-sm text-slate-400"
@@ -542,7 +533,7 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
                   >
                     {busy === 'upload' ? <Loader2 size={17} className="animate-spin" /> : 'Завантажити'}
                   </button>
-                </div>
+                </div>}
               </section>
 
                 <section aria-label="Файли первинного акта">
@@ -566,14 +557,14 @@ export default function ApplicationActionDrawer({ application, onClose, onChange
                                 <p className="truncate text-xs font-medium text-slate-300">{file.fileName}</p>
                                 <p className="mt-0.5 text-[10px] text-slate-600">{formatDateTime(file.createdAt)}</p>
                               </div>
-                              <button
+                              {file.category !== 'act' && <button
                                 onClick={() => void handleDeleteFile(file)}
                                 disabled={busy !== null}
                                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-600 hover:bg-rose-500/10 hover:text-rose-400"
                                 title="Видалити"
                               >
                                 {busy === `delete-file-${file.id}` ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                              </button>
+                              </button>}
                             </div>
                           </div>
                         );

@@ -136,9 +136,14 @@ export async function updateActStatus(
   });
 
   if (invokeError) {
-    throw new Error(
-      `Не вдалося передати дію в Telegram-бот: ${invokeError.message}`,
-    );
+    let message = 'Не вдалося підтвердити дію. Перевірте з’єднання та повторіть.';
+    try {
+      const response = (invokeError as { context?: Response }).context;
+      const body = response ? await response.json() : null;
+      if (typeof body?.error === 'string' && !body.error.startsWith('Act was not changed'))
+        message = body.error;
+    } catch { /* Keep a readable error even for an empty or non-JSON response. */ }
+    throw new Error(message);
   }
 
   if (!result?.ok) {

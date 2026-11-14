@@ -5,7 +5,7 @@ import { Pager } from "./Portal";
 import CustomerDetails, { SitePassport } from "./CustomerDetails";
 import "./portal.css";
 export default function Customers() {
-  const [tab, setTab] = useState("pending"),
+  const [tab, setTab] = useState("active"),
     [customers, setCustomers] = useState<Customer[]>([]),
     [sites, setSites] = useState<Site[]>([]),
     [page, setPage] = useState(0),
@@ -60,6 +60,21 @@ export default function Customers() {
   useEffect(() => {
     void refresh();
   }, [tab, page, searched, network]);
+  useEffect(() => {
+    const update = () => {
+      if (document.visibilityState !== "visible" || busy || openedCustomer || passport) return;
+      void refresh();
+      if (tab === "sites") setNetworkRevision((v) => v + 1);
+    };
+    const timer = window.setInterval(update, 15000);
+    window.addEventListener("focus", update);
+    document.addEventListener("visibilitychange", update);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", update);
+      document.removeEventListener("visibilitychange", update);
+    };
+  }, [tab, page, searched, network, busy, openedCustomer, passport]);
   useEffect(() => {
     if (tab !== "sites") return;
     let active = true;
@@ -133,12 +148,12 @@ export default function Customers() {
   if (passport) return <div className="rpv-office"><SitePassport site={passport} onBack={() => setPassport(null)} /></div>;
   return (
     <div className="rpv-office">
-      <h1>Замовники</h1>
-      <p>Підтвердження контактів, паспорти АЗК та доступ до заявок.</p>
+      <h1>Менеджери АЗК</h1>
+      <p>Зареєстровані менеджери, їхні об’єкти та паспорти АЗК.</p>
       <nav className="rpv-tabs">
         {[
+          ["active", "Зареєстровані"],
           ["pending", "Запити"],
-          ["active", "Підтверджені"],
           ["rejected", "Відхилені"],
           ["sites", "Пошук АЗК"],
         ].map(([id, label]) => (

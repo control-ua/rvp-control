@@ -10,7 +10,7 @@ create table rpv_customer_sites(id uuid primary key,site_key text,address text);
 create table applications(id uuid primary key,application_number text,contractor_id uuid,title text,description text,address text,status text default 'new',contractor_stage text default 'offered',accepted_at timestamptz,departed_at timestamptz,updated_at timestamptz default now(),awaiting_act boolean default false,has_problem boolean default false,problem_comment text,actual_volume numeric,customer_site_id uuid,payout_amount numeric default 0,unit_price numeric default 0,payout_status text default 'pending',paid_at timestamptz,payout_receipt_file_id text,payout_receipt_type text,payout_receipt_name text,paid_by bigint);
 create table acts(id uuid primary key,application_id uuid,contractor_id uuid,telegram_file_id text,file_type text,file_name text,status text,act_number text,act_date timestamptz,created_at timestamptz default now(),reviewed_at timestamptz);
 create table act_files(id uuid primary key default gen_random_uuid(),act_id uuid,telegram_file_id text,file_type text,file_name text,created_at timestamptz default now());
-create table work_history(id uuid primary key default gen_random_uuid(),application_id uuid,contractor_id uuid,title text,description text,completed_at timestamptz);
+create table work_history(id uuid primary key default gen_random_uuid(),application_id uuid references applications(id) on delete set null,contractor_id uuid not null references contractors(id) on delete cascade,title text not null,description text,completed_at timestamptz not null,created_at timestamptz not null default now());
 create table rpv_customer_act_data(act_id uuid primary key,application_id uuid unique,site_id uuid,work_date date,pumped_m3 numeric);
 create table rpv_portal_events(id bigint generated always as identity primary key,actor text,action text,application_id uuid,details jsonb);
 create function rpv_customer_publish(p_act text,p_site text,p_date date,p_volume numeric) returns table(act_id uuid,site_id uuid,work_date date,pumped_m3 numeric,application_number text) language plpgsql set search_path='' as $$
@@ -120,5 +120,28 @@ assert.equal((await db.query('select count(*)::int n from work_history where app
 assert.equal((await service('select rpv_service_review($1,$2,$3) r',[owner,registered.id,'approved']))[0].r.changed,false);
 await assert.rejects(asOffice(owner,insertSecond),e=>e.code==='40001');
 assert.equal((await db.query('select count(*)::int n from act_files where act_id=$1',[registered.id])).rows[0].n,2);
+
+// Reproduce the production failure: an office act has no assigned contractor.
+const officeApp='30000000-0000-0000-0000-000000000003',officeFile='70000000-0000-0000-0000-000000000003';
+const officePath=`${officeApp}/act/office-original.png`;
+await db.exec(`insert into applications(id,application_number,title,status) values('${officeApp}','G-OFFICE','Office act without contractor','in_progress');
+insert into storage.objects(bucket_id,name) values('application-media','${officePath}');`);
+await asOffice(owner,`insert into application_files(id,application_id,storage_path,category,file_name,file_type,uploaded_by) values('${officeFile}','${officeApp}','${officePath}','act','office-original.png','image/png','${owner}')`);
+const officeAct=(await db.query('select id from acts where application_id=$1',[officeApp])).rows[0].id;
+await assert.rejects(service('select rpv_service_review($1,$2,$3)',[owner,officeAct,'approved']),e=>e.code==='23502'&&e.column==='contractor_id');
+assert.equal((await db.query('select status from acts where id=$1',[officeAct])).rows[0].status,'pending');
+assert.equal((await db.query('select count(*)::int n from work_history where application_id=$1',[officeApp])).rows[0].n,0);
+await db.exec(await fs.readFile(new URL('../supabase/migrations/20261114190519_office_act_history.sql',import.meta.url),'utf8'));
+// The migration alone does not accept work. The usual office decision still owns completion.
+assert.equal((await db.query('select status from acts where id=$1',[officeAct])).rows[0].status,'pending');
+await service('select rpv_service_review($1,$2,$3)',[owner,officeAct,'approved']);
+const officeResult=(await db.query('select status,contractor_id,awaiting_act,payout_amount,payout_status from applications where id=$1',[officeApp])).rows[0];
+assert.equal(officeResult.status,'completed');assert.equal(officeResult.contractor_id,null);assert.equal(officeResult.awaiting_act,false);
+assert.equal(officeResult.payout_amount,'0');assert.equal(officeResult.payout_status,'pending');
+assert.equal((await db.query('select contractor_id from work_history where application_id=$1',[officeApp])).rows[0].contractor_id,null);
+assert.equal((await db.query('select count(*)::int n from act_files where act_id=$1 and storage_path=$2',[officeAct,officePath])).rows[0].n,1);
+assert.equal((await service('select rpv_service_review($1,$2,$3) r',[owner,officeAct,'approved']))[0].r.changed,false);
+assert.equal((await db.query('select count(*)::int n from work_history where application_id=$1',[officeApp])).rows[0].n,1);
+console.log('PASS: reproduced missing-contractor failure; office approval now closes work with real identity, retained act/history, unchanged payouts, and idempotent retry.');
 console.log('PASS: uploaded act backfill, atomic registration, roles, path ownership, multiple pages, completion/history, idempotency, private original retention.');
 console.log('PASS: complete workflow, ownership, stale writes, state order, reports/files, atomic rollback, publication/history idempotency, rejection/correction, revocation and office role boundaries.');await db.close();

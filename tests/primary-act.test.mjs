@@ -10,7 +10,7 @@ test('completion checks the registry, approves with current auth, and verifies c
     auth:{getSession:async()=>({data:{session:{access_token:'test-office-token'}}})},
     functions:{invoke:async(name,options)=>{
       calls.push({name,...options});
-      if(failed) return {error:new Error('Review failed')};
+      if(failed) return {error:{message:'Non-2xx response',context:Response.json({error:'Недостатньо прав для цієї дії.'},{status:403})}};
       if(commit){acts[0].status='approved';status='completed';}
       return {data:{ok:true}};
     }},
@@ -24,7 +24,7 @@ test('completion checks the registry, approves with current auth, and verifies c
   await assert.rejects(api.completeApplicationWithAct('app'),/Додайте первинний акт/);
   assert.equal(calls.length,0);
   acts=[{id:'act',status:'pending'}];failed=true;
-  await assert.rejects(api.completeApplicationWithAct('app'),/Review failed/);
+  await assert.rejects(api.completeApplicationWithAct('app'),/Недостатньо прав для цієї дії/);
   failed=false;commit=false;
   await assert.rejects(api.completeApplicationWithAct('app'),/Завершення ще не підтверджено/);
   commit=true;await api.completeApplicationWithAct('app');

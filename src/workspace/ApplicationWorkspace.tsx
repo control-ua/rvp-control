@@ -91,6 +91,7 @@ export default function ApplicationWorkspace({
       application={app}
       onClose={onClose}
       onChanged={load}
+      primaryActAction={latest ? <button onClick={() => onOpenAct(latest.id)}><ClipboardCheck size={15} /> Переглянути акт</button> : undefined}
       resultLabel={
         pending
           ? "Акт на перевірці"
@@ -105,10 +106,6 @@ export default function ApplicationWorkspace({
               <Building2 size={15} /> Паспорт об’єкта
             </button>
           )}
-          <button onClick={() => onOpenAct(latest?.id)}>
-            <ClipboardCheck size={15} /> Акти{" "}
-            {acts.length ? `· ${acts.length}` : ""}
-          </button>
           {app.status === "Виконана" && (
             <button onClick={onPayouts}>
               <Wallet size={15} /> Виплата
